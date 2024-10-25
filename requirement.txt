@@ -1,0 +1,9 @@
+python-dotenv
+google-generativeai
+docx2pdf
+Werkzeug
+markdown
+faiss-cpu
+sentence-transformers
+chardet
+python-docx
