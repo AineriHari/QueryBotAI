@@ -192,6 +192,15 @@ def generate_response_for_query(
 
 
 def print_decorative_box(text: str) -> None:
+    """
+    Prints a decorative box around a given text.
+
+    Args:
+        text (str): The text to display inside the decorative box.
+
+    Returns:
+        None
+    """
     box_length = len(text) + 4
     border = "+" * box_length
     middle = f"|  {text.center(len(text))}  |"
@@ -201,6 +210,18 @@ def print_decorative_box(text: str) -> None:
 
 
 def cleanup(directory_paths: List) -> None:
+    """
+    Deletes all files and directories within the given directory paths.
+
+    Args:
+        directory_paths (List[str]): List of directory paths to clean up.
+
+    Returns:
+        None
+
+    Note:
+        If the specified directories do not exist, a message is printed.
+    """
     for directory_path in directory_paths:
         for filename in os.listdir(directory_path):
             file_path = os.path.join(directory_path, filename)
@@ -218,16 +239,21 @@ def main() -> None:
     Main function to run the command-line interface for indexing and querying documents.
 
     This function sets up argument parsing, loads the FAISS model, and handles the actions
-    for either indexing documents or querying based on user input.
+    for either indexing documents or querying based on user input. If indexing is selected,
+    it performs a cleanup of specified directories and uploads files. If querying, it loads
+    the FAISS model, reads the query from a file, and generates a response.
+
+    Returns:
+        None
     """
     try:
-        print("Hello, Welcome to the local LLM......\n")
-        print("This is the basic document search LLM which is very light weight and fast response."
-              "\nFirst index the document which files you want to embed. Later perform query actions.")
-        action = input(f"\nHey User, Please select the action?\n1. Index\n2. Query\nSelected: ")[0]
+        print("Hello! Welcome to the local LLM...\n")
+        print("This is a simple, fast-response document search LLM."
+              "\nPlease start by indexing the documents you want to embed. You can then proceed with querying.")
+        action = input(f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: ")[0]
 
         if action == "1":
-            print("Performing Clean Up action")
+            print("Performing clean up action")
             # remove the uploaded_documents and static folder
             directory_paths = [
                 os.path.join(os.getcwd(), "uploaded_documents"),
