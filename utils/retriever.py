@@ -11,9 +11,31 @@ Key Functions:
 
 import os
 import numpy as np
+from typing import Tuple
+import google.generativeai as genai
+from utils.model_loader import load_model
 
 
-def retrieve_documents(faiss_index, model, query, filenames_mapping, k=3):
+def analyze_chunk_with_llm(model: genai.GenerativeModel, chunk: bytes, query: str) -> Tuple[bool, bytes]:
+    # Define the prompt
+    content = [f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
+               f"answer to the question?\n\n{chunk}\n\nAnswer 'yes' or 'no'."]
+
+    # Generate response using the Gemini model
+    response = model.generate_content(content)
+
+    # return the boolean and chunk
+    return response.text.strip().lower() == 'yes', chunk
+
+
+def retrieve_documents(
+        faiss_index,
+        model,
+        query,
+        filenames_mapping,
+        model_name: str = "gemini-1.5-flash",
+        k=3
+):
     """
     Retrieves relevant documents based on the user query using FAISS.
 
@@ -22,6 +44,7 @@ def retrieve_documents(faiss_index, model, query, filenames_mapping, k=3):
         model: The model (e.g., SentenceTransformer) used to encode the query.
         query (str): The user's query.
         filenames_mapping: A dictionary mapping FAISS indices to the actual document filenames.
+        model_name (str, optional): The name of the generative AI model to load. Defaults to "gemini-1.5-flash".
         k (int): The number of documents to retrieve.
 
     Returns:
@@ -40,7 +63,10 @@ def retrieve_documents(faiss_index, model, query, filenames_mapping, k=3):
         files = []
         session_documents_folder = os.path.abspath(os.path.join('retrieved_documents'))
         os.makedirs(session_documents_folder, exist_ok=True)
-        
+
+        # Load the Gemini model
+        model = load_model(model_name)
+
         # Iterate over the search results
         for idx in indices[0]:
             # Fetch the document filename from the filenames_mapping based on the FAISS index
@@ -56,12 +82,29 @@ def retrieve_documents(faiss_index, model, query, filenames_mapping, k=3):
                         session_documents_folder,
                         f"{idx}{os.path.splitext(doc_filename)[-1]}"
                     )
-                    if not os.path.exists(dest_path):
-                        # Copy document to the static folder
-                        with open(doc_path, 'rb') as f:
-                            content = f.read()
+
+                    # remove the destination file is already present
+                    if os.path.exists(dest_path):
+                        os.remove(dest_path)
+
+                    # Copy document to the static folder
+                    with open(doc_path, 'rb') as f:
+                        content = f.read()
+
+                        # Analyze the document is related to query
+                        is_relevant, useful_chunk = analyze_chunk_with_llm(
+                            model=model,
+                            chunk=content,
+                            query=query
+                        )
+                        print(f"Is relevant status: {is_relevant} for document: {doc_path}")
+                        if not is_relevant:
+                            # if the is relevant is false which means the query is not related to that documents
+                            # hence skipping
+                            continue
+
                         with open(dest_path, 'wb') as f:
-                            f.write(content)
+                            f.write(useful_chunk)
                         print(f"Saved document: {dest_path}")
                     
                     # Store the relative path from the static folder

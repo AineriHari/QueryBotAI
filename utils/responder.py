@@ -38,7 +38,10 @@ def generate_response(query: str, documents: list = None, model_name: str = "gem
 
     try:
         # store the content with query and related documents data
-        content = [query]
+        content = [
+            "system role: You are an assistant providing comprehensive answers based on relevant information.",
+            query,
+        ]
         for document in documents:
             if os.path.exists(document):
                 with open(document, 'rb') as file:
@@ -55,7 +58,7 @@ def generate_response(query: str, documents: list = None, model_name: str = "gem
                         print(f"No content found in {document} for analysis.")
             else:
                 print(f"Document not found: {document}")
-        
+
         # Generate response using the Gemini model
         response = model.generate_content(content)
 
