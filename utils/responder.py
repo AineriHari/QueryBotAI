@@ -37,25 +37,22 @@ def generate_response(query: str, documents: list = None, model_name: str = "gem
     model = load_model(model_name)
 
     try:
+        # store the content with query and related documents data
         content = [query]
-
         for document in documents:
             if os.path.exists(document):
-                try:
-                    with open(document, 'rb') as file:
-                        file_data = file.read()
+                with open(document, 'rb') as file:
+                    file_data = file.read()
 
-                        # Try to decode the file data as UTF-8 (for text-based files)
-                        try:
-                            decoded_content = file_data.decode('utf-8')
-                            content.append(decoded_content)
-                        except UnicodeDecodeError:
-                            pass
+                    # Try to decode the file data as UTF-8 (for text-based files)
+                    try:
+                        decoded_content = file_data.decode('utf-8')
+                        content.append(decoded_content)
+                    except UnicodeDecodeError:
+                        pass
 
-                        if not file_data:
-                            print(f"No content found in {document} for analysis.")
-                except IOError as io_error:
-                    print(f"Error opening document {document}: {io_error}")
+                    if not file_data:
+                        print(f"No content found in {document} for analysis.")
             else:
                 print(f"Document not found: {document}")
         
@@ -67,7 +64,6 @@ def generate_response(query: str, documents: list = None, model_name: str = "gem
             return response.text
         else:
             return "The Gemini model did not generate any text response"
-    
     except Exception as exc:
         print(f"Error in Gemini processing: {str(exc)}")
         return f"An error occurred while processing the document: {str(exc)}"

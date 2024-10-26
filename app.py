@@ -16,8 +16,10 @@ Key Functions:
 """
 
 import os
-import argparse
+import traceback
+import shutil
 import faiss
+from typing import List, Dict
 from utils.indexer import index_documents
 from utils.retriever import retrieve_documents
 from utils.responder import generate_response
@@ -29,13 +31,13 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Configure folders
 UPLOAD_FOLDER = 'uploaded_documents'
-STATIC_FOLDER = 'static'
+RETRIVE_FOLDER = 'retrieved_documents'
 INDEX_FOLDER = os.path.join(os.getcwd(), '.faiss')
 FAISS_INDEX_FILE = os.path.join(INDEX_FOLDER, "index.faiss")
 
 # Create necessary directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(STATIC_FOLDER, exist_ok=True)
+os.makedirs(RETRIVE_FOLDER, exist_ok=True)
 os.makedirs(INDEX_FOLDER, exist_ok=True)
 
 # Initialize global variable for the faiss model
@@ -43,7 +45,7 @@ faiss_model = None
 model = None
 
 
-def create_filenames_mapping(document_folder):
+def create_filenames_mapping(document_folder: str) -> Dict:
     """
     Creates a mapping from FAISS index to the actual document filenames.
     
@@ -66,7 +68,7 @@ def create_filenames_mapping(document_folder):
     return filenames_mapping
 
 
-def load_faiss_model():
+def load_faiss_model() -> None:
     """
     Loads the FAISS index and the SentenceTransformer model.
 
@@ -78,13 +80,12 @@ def load_faiss_model():
     # Check if the FAISS index file exists
     if os.path.exists(FAISS_INDEX_FILE):
         try:
-
             # Set number of threads for faster operations
             faiss.omp_set_num_threads(8)
 
             # Load the FAISS index
             faiss_model = faiss.read_index(FAISS_INDEX_FILE)
-            print("FAISS index loaded")
+            print_decorative_box("FAISS index loaded")
 
             # Load the embedding model (e.g., SentenceTransformer)
             model = SentenceTransformer(
@@ -92,14 +93,13 @@ def load_faiss_model():
                 local_files_only=True
             )
             print("SentenceTransformer model loaded")
-
         except Exception as e:
             print(f"Error loading FAISS index or model: {e}")
     else:
         print("No FAISS index found.")
 
 
-def upload_files(files):
+def upload_files(files: List) -> List:
     """
     Uploads files to the designated upload folder.
 
@@ -121,7 +121,7 @@ def upload_files(files):
     return uploaded_files
 
 
-def index_documents_for_files(uploaded_files):
+def index_documents_for_files(uploaded_files: List) -> List:
     """
     Indexes the uploaded documents using FAISS.
 
@@ -138,14 +138,15 @@ def index_documents_for_files(uploaded_files):
     
     try:
         faiss_model = index_documents(UPLOAD_FOLDER, index_path=INDEX_FOLDER)
-        print("Documents indexed successfully.")
+        print("FAISS Index Model loaded")
+        print_decorative_box("Documents indexed successfully")
         return uploaded_files
     except Exception as e:
         print(f"Error indexing documents: {str(e)}")
         return []
 
 
-def query_documents(query):
+def query_documents(query: str) -> List:
     """
     Queries the FAISS index for relevant documents based on the input query.
 
@@ -167,7 +168,10 @@ def query_documents(query):
     return retrieved_documents
 
 
-def generate_response_for_query(query, retrieved_documents):
+def generate_response_for_query(
+        query: str,
+        retrieved_documents: List
+) -> str:
     """
     Generates a response based on the input query and retrieved documents.
 
@@ -182,44 +186,79 @@ def generate_response_for_query(query, retrieved_documents):
         response = generate_response(query=query, documents=retrieved_documents)
         return response
     except Exception as e:
+        print(traceback.format_exc())
         print(f"Error generating response: {e}")
-        return "Error generating response."
+        return ""
 
 
-def main():
+def print_decorative_box(text: str) -> None:
+    box_length = len(text) + 4
+    border = "+" * box_length
+    middle = f"|  {text.center(len(text))}  |"
+    print(border)
+    print(middle)
+    print(border)
+
+
+def cleanup(directory_paths: List) -> None:
+    for directory_path in directory_paths:
+        for filename in os.listdir(directory_path):
+            file_path = os.path.join(directory_path, filename)
+            if os.path.isfile(file_path) and os.path.exists(file_path):
+                os.remove(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+            print(f"Directory '{filename}' and all its contents have been removed.")
+        else:
+            print(f"Directory '{directory_path}' content does not exist.")
+
+
+def main() -> None:
     """
     Main function to run the command-line interface for indexing and querying documents.
 
     This function sets up argument parsing, loads the FAISS model, and handles the actions
     for either indexing documents or querying based on user input.
     """
-    parser = argparse.ArgumentParser(description="Command-line tool for document indexing and querying.")
-    parser.add_argument('--action', choices=['query', 'index'], required=True, help="Action to perform")
-    parser.add_argument('--files', nargs='*', help="Files to upload for indexing")
-    parser.add_argument('--query', help="Query to ask the faiss model")
-    
-    args = parser.parse_args()
+    try:
+        print("Hello, Welcome to the local LLM......\n")
+        print("This is the basic document search LLM which is very light weight and fast response."
+              "\nFirst index the document which files you want to embed. Later perform query actions.")
+        action = input(f"\nHey User, Please select the action?\n1. Index\n2. Query\nSelected: ")[0]
 
-    # Load faiss model when starting the script
-    load_faiss_model()
+        if action == "1":
+            print("Performing Clean Up action")
+            # remove the uploaded_documents and static folder
+            directory_paths = [
+                os.path.join(os.getcwd(), "uploaded_documents"),
+                os.path.join(os.getcwd(), "retrieved_documents")
+            ]
+            cleanup(directory_paths)
+            print("Clean up process completed successfully")
 
-    if args.action == 'query':
-        if not args.query:
-            print("Query is required.")
-            return
-        retrieved_documents = query_documents(args.query)
-        response = generate_response_for_query(args.query, retrieved_documents)
-        with open("response.txt", "w") as file:
-            file.write(response)
-        print(f"Generated response successfully.")
+            files = input("Provide the files by separating spaces\nFiles: ").split(" ")
 
-    elif args.action == 'index':
-        if not args.files:
-            print("Files are required for indexing.")
-            return
-        uploaded_files = upload_files(args.files)
-        uploaded_files = index_documents_for_files(uploaded_files)
-        print(f"Files uploaded and indexed: {uploaded_files}")
+            uploaded_files = upload_files(files)
+            uploaded_files = index_documents_for_files(uploaded_files)
+            print(f"Files uploaded and indexed: {uploaded_files}")
+        else:
+            # Load faiss model when starting the script
+            load_faiss_model()
+
+            with open("prompt.txt", "r") as file:
+                query = file.read()
+            # verify the prompt query
+            if not query:
+                print_decorative_box("No query found in prompt template!!!")
+            else:
+                retrieved_documents = query_documents(query)
+                response = generate_response_for_query(query, retrieved_documents)
+                with open("response.txt", "w") as file:
+                    file.write(response)
+                print_decorative_box(f"Generated response successfully.")
+    except Exception as exc:
+        print(traceback.format_exc())
+        print_decorative_box(f"Failed!!!! {exc}")
 
 
 if __name__ == "__main__":

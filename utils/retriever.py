@@ -38,11 +38,11 @@ def retrieve_documents(faiss_index, model, query, filenames_mapping, k=3):
         _, indices = faiss_index.search(query_embedding, k)
         
         files = []
-        session_documents_folder = os.path.abspath(os.path.join('static', 'documents'))
+        session_documents_folder = os.path.abspath(os.path.join('retrieved_documents'))
         os.makedirs(session_documents_folder, exist_ok=True)
         
         # Iterate over the search results
-        for idx in indices[0]:  # indices[0] gives the indices for the top k results
+        for idx in indices[0]:
             # Fetch the document filename from the filenames_mapping based on the FAISS index
             doc_filename = filenames_mapping.get(idx, None)
             
@@ -52,7 +52,10 @@ def retrieve_documents(faiss_index, model, query, filenames_mapping, k=3):
                 
                 if os.path.exists(doc_path):
                     # Copy or move the document to the static folder
-                    dest_path = os.path.join(session_documents_folder, f"retrieved_{idx}_{doc_filename}")
+                    dest_path = os.path.join(
+                        session_documents_folder,
+                        f"{idx}{os.path.splitext(doc_filename)[-1]}"
+                    )
                     if not os.path.exists(dest_path):
                         # Copy document to the static folder
                         with open(doc_path, 'rb') as f:
@@ -62,7 +65,9 @@ def retrieve_documents(faiss_index, model, query, filenames_mapping, k=3):
                         print(f"Saved document: {dest_path}")
                     
                     # Store the relative path from the static folder
-                    relative_path = os.path.abspath(os.path.join('static', 'documents', f"retrieved_{idx}_{doc_filename}"))
+                    relative_path = os.path.abspath(os.path.join(
+                        'retrieved_documents', f"{idx}{os.path.splitext(doc_filename)[-1]}")
+                    )
                     files.append(relative_path)
                     print(f"Added document to list: {relative_path}")
                 else:

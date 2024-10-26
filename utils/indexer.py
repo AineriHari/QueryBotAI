@@ -16,7 +16,6 @@ import chardet
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
-from utils.converters import convert_to_pdf
 
 
 def read_file_with_fallback(file_path):
@@ -60,24 +59,21 @@ def index_documents(folder_path, index_path=None, indexer_model='paraphrase-Mini
     """
     try:
         print(f"Starting document indexing in folder: {folder_path}")
-        # Convert non-PDF documents to PDFs
-        convert_to_pdf(folder_path)
-        print("Conversion of non-PDF documents to PDFs completed.")
 
         # Load documents from folder
         docs = []
         for filename in os.listdir(folder_path):
             file_path = os.path.join(folder_path, filename)
-            if filename.endswith(".docx"):
-                try:
-                    # Use the read_file_with_fallback method to handle encoding issues
-                    content = read_file_with_fallback(file_path)
-                    docs.append(content)
-                except Exception as e:
-                    print(f"Error reading file {filename}: {str(e)}")
+            try:
+                # Use the read_file_with_fallback method to handle encoding issues
+                content = read_file_with_fallback(file_path)
+                docs.append(content)
+            except Exception as e:
+                print(f"Error reading file {filename}: {str(e)}")
 
-        print(f"Loaded {len(docs)} documents.")
+        print(f"Loaded {len(docs)} documents")
 
+        print("Starting embedding and Indexing...It will take a while ")
         # Load the pre-trained model for embedding generation
         model = SentenceTransformer(indexer_model)
 

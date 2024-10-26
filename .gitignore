@@ -1,6 +1,6 @@
 .idea/
 utils/__pycache__/
 paraphrase-MiniLM-L6-v2-local/
-.faiss/
-static/documents/
-uploaded_documents/
+.faiss/*
+retrieved_documents/*
+uploaded_documents/*
