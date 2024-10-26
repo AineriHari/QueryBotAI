@@ -14,7 +14,7 @@ import google.generativeai as genai
 
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
 
 def load_model(model_name):

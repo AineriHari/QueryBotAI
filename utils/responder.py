@@ -56,8 +56,6 @@ def generate_response(query: str, documents: list = None, model_name: str = "gem
 
                     if not file_data:
                         print(f"No content found in {document} for analysis.")
-            else:
-                print(f"Document not found: {document}")
 
         # Generate response using the Gemini model
         response = model.generate_content(content)

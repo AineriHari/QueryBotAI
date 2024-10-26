@@ -73,7 +73,7 @@ def index_documents(folder_path, index_path=None, indexer_model='paraphrase-Mini
 
         print(f"Loaded {len(docs)} documents")
 
-        print("Starting embedding and Indexing...It will take a while ")
+        print("Initiating embedding and indexing... This may take some time.")
         # Load the pre-trained model for embedding generation
         model = SentenceTransformer(indexer_model)
 

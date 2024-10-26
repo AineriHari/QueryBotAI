@@ -17,6 +17,19 @@ from utils.model_loader import load_model
 
 
 def analyze_chunk_with_llm(model: genai.GenerativeModel, chunk: bytes, query: str) -> Tuple[bool, bytes]:
+    """
+    Analyzes a text chunk to determine its relevance to a user query using a Generative AI model.
+
+    Args:
+        model (genai.GenerativeModel): An instance of the GenerativeModel used to generate responses.
+        chunk (bytes): The text chunk that needs to be analyzed for relevance.
+        query (str): The user question to which the relevance of the text chunk will be evaluated.
+
+    Returns:
+        Tuple[bool, bytes]: A tuple where the first element is a boolean indicating
+                            whether the chunk is relevant to the query ('yes' or 'no'),
+                            and the second element is the original text chunk.
+    """
     # Define the prompt
     content = [f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
                f"answer to the question?\n\n{chunk}\n\nAnswer 'yes' or 'no'."]
