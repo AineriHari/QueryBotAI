@@ -10,7 +10,12 @@ Key Functions:
 """
 
 import os
+import logging
 from utils.model_loader import load_model
+
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 
 def generate_response(query: str, documents: list = None, model_name: str = "gemini-1.5-flash"):
@@ -28,7 +33,7 @@ def generate_response(query: str, documents: list = None, model_name: str = "gem
     Returns:
         str: The generated response or an error message if no documents are found or if an error occurs.
     """
-    print(f"Generating response using model: {model_name}")
+    logging.info(f"Generating response using model: {model_name}")
 
     if documents is None or len(documents) == 0:
         return "No Documents to be loaded for analysis"
@@ -55,16 +60,16 @@ def generate_response(query: str, documents: list = None, model_name: str = "gem
                         pass
 
                     if not file_data:
-                        print(f"No content found in {document} for analysis.")
+                        logging.warning(f"No content found in {document} for analysis.")
 
         # Generate response using the Gemini model
         response = model.generate_content(content)
 
         if response and response.text:
-            print("Response generated using Gemini model")
+            logging.info("Response generated using Gemini model")
             return response.text
         else:
             return "The Gemini model did not generate any text response"
     except Exception as exc:
-        print(f"Error in Gemini processing: {str(exc)}")
+        logging.exception(f"Error in Gemini processing: {str(exc)}")
         return f"An error occurred while processing the document: {str(exc)}"

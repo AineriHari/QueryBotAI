@@ -6,7 +6,6 @@ retrieval, and generate responses based on user queries. It includes command-lin
 support for indexing and querying operations.
 
 Key Functions:
-- create_filenames_mapping: Maps FAISS indices to actual document filenames.
 - load_faiss_model: Loads the FAISS index and embedding model.
 - upload_files: Handles file uploads and saves them to the designated folder.
 - index_documents_for_files: Indexes uploaded documents using the FAISS index.
@@ -19,12 +18,18 @@ import os
 import traceback
 import shutil
 import faiss
+import logging
 from typing import List, Dict
 from utils.indexer import index_documents
 from utils.retriever import retrieve_documents
 from utils.responder import generate_response
 from werkzeug.utils import secure_filename
 from sentence_transformers import SentenceTransformer
+from faiss.swigfaiss import IndexFlatL2
+
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # Set the TOKENIZERS_PARALLELISM environment variable to suppress warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -32,8 +37,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # Configure folders
 UPLOAD_FOLDER = 'uploaded_documents'
 RETRIVE_FOLDER = 'retrieved_documents'
-INDEX_FOLDER = os.path.join(os.getcwd(), '.faiss')
-FAISS_INDEX_FILE = os.path.join(INDEX_FOLDER, "index.faiss")
+INDEX_FOLDER = os.path.abspath(os.path.join(os.getcwd(), '.faiss'))
+FAISS_INDEX_FILE = os.path.abspath(os.path.join(INDEX_FOLDER, "index.faiss"))
+FAISS_INDEX_FILE_MAPPING = os.path.abspath(os.path.join(INDEX_FOLDER, "faiss_index_file_mapping.json"))
 
 # Create necessary directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -41,31 +47,8 @@ os.makedirs(RETRIVE_FOLDER, exist_ok=True)
 os.makedirs(INDEX_FOLDER, exist_ok=True)
 
 # Initialize global variable for the faiss model
-faiss_model = None
-model = None
-
-
-def create_filenames_mapping(document_folder: str) -> Dict:
-    """
-    Creates a mapping from FAISS index to the actual document filenames.
-    
-    Args:
-        document_folder: The folder where the documents are stored.
-    
-    Returns:
-        dict: A dictionary mapping FAISS indices to filenames.
-    """
-    filenames_mapping = {}
-    
-    # List all files in the document folder
-    document_files = os.listdir(document_folder)
-    
-    # Assuming documents are named based on their index in FAISS (0.pdf, 1.pdf, ...)
-    for idx, doc_file in enumerate(document_files):
-        # Map the FAISS index to the document filename
-        filenames_mapping[idx] = doc_file
-    
-    return filenames_mapping
+faiss_model: IndexFlatL2 = None
+model: SentenceTransformer = None
 
 
 def load_faiss_model() -> None:
@@ -92,11 +75,11 @@ def load_faiss_model() -> None:
                 'sentence-transformers/paraphrase-MiniLM-L6-v2',
                 local_files_only=True
             )
-            print("SentenceTransformer model loaded")
+            logging.info("SentenceTransformer model loaded")
         except Exception as e:
-            print(f"Error loading FAISS index or model: {e}")
+            logging.error(f"Error loading FAISS index or model: {e}")
     else:
-        print("No FAISS index found.")
+        logging.warning("No FAISS index found.")
 
 
 def upload_files(files: List) -> List:
@@ -117,7 +100,7 @@ def upload_files(files: List) -> List:
             with open(file_path, 'w') as fw:
                 fw.write(fr.read())
         uploaded_files.append(filename)
-        print(f"File saved: {file_path}")
+        logging.info(f"File saved: {file_path}")
     return uploaded_files
 
 
@@ -133,16 +116,16 @@ def index_documents_for_files(uploaded_files: List) -> List:
     """
     global faiss_model
     if not uploaded_files:
-        print("No files to index.")
+        logging.error("No files to index.")
         return []
     
     try:
         faiss_model = index_documents(UPLOAD_FOLDER, index_path=INDEX_FOLDER)
-        print("FAISS Index Model loaded")
+        logging.info("FAISS Index Model loaded")
         print_decorative_box("Documents indexed successfully")
         return uploaded_files
     except Exception as e:
-        print(f"Error indexing documents: {str(e)}")
+        logging.error(f"Error indexing documents: {str(e)}")
         return []
 
 
@@ -157,14 +140,17 @@ def query_documents(query: str) -> List:
         list: A list of documents retrieved from the FAISS index.
     """
     if faiss_model is None:
-        print("faiss model not loaded.")
+        logging.error("faiss model not loaded.")
         return []
 
     # Create the mapping between FAISS indices and filenames
-    filenames_mapping = create_filenames_mapping(UPLOAD_FOLDER)
-
-    retrieved_documents = retrieve_documents(faiss_model, model, query, filenames_mapping)
-    print(f"Retrieved documents: {retrieved_documents}")
+    retrieved_documents = retrieve_documents(
+        faiss_index=faiss_model,
+        model=model,
+        query=query,
+        faiss_index_file_mapping=FAISS_INDEX_FILE_MAPPING
+    )
+    logging.info(f"Retrieved documents: {retrieved_documents}")
     return retrieved_documents
 
 
@@ -186,8 +172,8 @@ def generate_response_for_query(
         response = generate_response(query=query, documents=retrieved_documents)
         return response
     except Exception as e:
-        print(traceback.format_exc())
-        print(f"Error generating response: {e}")
+        logging.exception(traceback.format_exc())
+        logging.error(f"Error generating response: {e}")
         return ""
 
 
@@ -204,9 +190,9 @@ def print_decorative_box(text: str) -> None:
     box_length = len(text) + 4
     border = "+" * box_length
     middle = f"|  {text.center(len(text))}  |"
-    print(border)
-    print(middle)
-    print(border)
+    logging.info(border)
+    logging.info(middle)
+    logging.info(border)
 
 
 def cleanup(directory_paths: List) -> None:
@@ -229,9 +215,9 @@ def cleanup(directory_paths: List) -> None:
                 os.remove(file_path)
             elif os.path.isdir(file_path):
                 shutil.rmtree(file_path)
-            print(f"Directory '{filename}' and all its contents have been removed.")
+            logging.info(f"Directory '{filename}' and all its contents have been removed.")
         else:
-            print(f"Directory '{directory_path}' content does not exist.")
+            logging.warning(f"Directory '{directory_path}' content does not exist.")
 
 
 def main() -> None:
@@ -247,26 +233,26 @@ def main() -> None:
         None
     """
     try:
-        print("Hello! Welcome to the local LLM...\n")
-        print("This is a simple, fast-response document search LLM."
-              "\nPlease start by indexing the documents you want to embed. You can then proceed with querying.")
+        logging.info("Hello! Welcome to the local LLM...\n")
+        logging.info("This is a simple, fast-response document search LLM."
+                     "\nPlease start by indexing the documents you want to embed. You can then proceed with querying.")
         action = input(f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: ")[0]
 
         if action == "1":
-            print("Performing clean up action")
+            logging.info("Performing clean up action")
             # remove the uploaded_documents and static folder
             directory_paths = [
                 os.path.join(os.getcwd(), "uploaded_documents"),
                 os.path.join(os.getcwd(), "retrieved_documents")
             ]
             cleanup(directory_paths)
-            print("Clean up process completed successfully")
+            logging.info("Clean up process completed successfully")
 
             files = input("Provide the files by separating spaces\nFiles: ").split(" ")
 
             uploaded_files = upload_files(files)
             uploaded_files = index_documents_for_files(uploaded_files)
-            print(f"Files uploaded and indexed: {uploaded_files}")
+            logging.info(f"Files uploaded and indexed: {uploaded_files}")
         else:
             # Load faiss model when starting the script
             load_faiss_model()
@@ -283,7 +269,7 @@ def main() -> None:
                     file.write(response)
                 print_decorative_box(f"Generated response successfully.")
     except Exception as exc:
-        print(traceback.format_exc())
+        logging.error(traceback.format_exc())
         print_decorative_box(f"Failed!!!! {exc}")
 
 

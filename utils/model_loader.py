@@ -9,9 +9,13 @@ Key Functions:
 """
 
 import os
+import logging
 from dotenv import load_dotenv
 import google.generativeai as genai
 
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables from .env file
 load_dotenv(override=True)
