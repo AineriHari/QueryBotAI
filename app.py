@@ -19,14 +19,18 @@ import traceback
 import shutil
 import faiss
 import logging
-from typing import List, Dict
+from typing import List
 from utils.indexer import index_documents
 from utils.retriever import retrieve_documents
 from utils.responder import generate_response
 from werkzeug.utils import secure_filename
 from sentence_transformers import SentenceTransformer
 from faiss.swigfaiss import IndexFlatL2
+from dotenv import load_dotenv
 
+
+# Load environment variables from .env file
+load_dotenv(override=True)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +44,7 @@ RETRIVE_FOLDER = 'retrieved_documents'
 INDEX_FOLDER = os.path.abspath(os.path.join(os.getcwd(), '.faiss'))
 FAISS_INDEX_FILE = os.path.abspath(os.path.join(INDEX_FOLDER, "index.faiss"))
 FAISS_INDEX_FILE_MAPPING = os.path.abspath(os.path.join(INDEX_FOLDER, "faiss_index_file_mapping.json"))
+
 
 # Create necessary directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -169,7 +174,15 @@ def generate_response_for_query(
         str: The generated response, formatted as HTML.
     """
     try:
-        response = generate_response(query=query, documents=retrieved_documents)
+        model_type = os.getenv("MODEL_TYPE")
+        model_name = "GEMINI_MODEL_NAME" if model_type == "gemini" else "LLAMA_MODEL_NAME"
+        model_name = os.getenv(model_name)
+        response = generate_response(
+            query=query,
+            documents=retrieved_documents,
+            model_name=model_name,
+            model_type=model_type
+        )
         return response
     except Exception as e:
         logging.exception(traceback.format_exc())
