@@ -11,14 +11,13 @@ Key Functions:
 import os
 import logging
 import google.generativeai as genai
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
 
-def load_gemini_model(model_name):
+def load_model(model_name):
     """
     Loads a specified Google Generative AI model.
 
@@ -44,29 +43,3 @@ def load_gemini_model(model_name):
 
     # Load google model
     return genai.GenerativeModel(model_name)
-
-
-def load_llama_model(model_name):
-    """
-    Loads a specified Llama 3.2 1B model from Hugging Face locally.
-
-    This function retrieves the Llama model and tokenizer from a local directory
-    or Hugging Face if required, and loads the specified model.
-
-    Args:
-        model_name (str): The path or Hugging Face model ID to load.
-
-    Returns:
-        tuple: A tuple containing the loaded model and tokenizer.
-    """
-    try:
-        # Define quantization config
-        quant_config = BitsAndBytesConfig(
-            load_in_4bit=True,  # Use 8-bit quantization
-        )
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=quant_config, device_map="auto",)
-    except Exception as e:
-        raise ValueError(f"Error loading model {model_name}: {e}")
-
-    return model, tokenizer

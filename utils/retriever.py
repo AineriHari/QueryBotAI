@@ -13,7 +13,7 @@ import os
 import numpy as np
 from typing import Tuple, Dict
 import google.generativeai as genai
-from utils.model_loader import load_gemini_model
+from utils.model_loader import load_model
 from faiss.swigfaiss import IndexFlatL2
 import logging
 import json
@@ -92,7 +92,7 @@ def retrieve_documents(
         os.makedirs(session_documents_folder, exist_ok=True)
 
         # Load the Gemini model
-        model = load_gemini_model(model_name)
+        model = load_model(model_name)
 
         # Iterate over the search results
         for dist, idx in zip(distances[0], indices[0]):

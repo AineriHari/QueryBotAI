@@ -174,14 +174,10 @@ def generate_response_for_query(
         str: The generated response, formatted as HTML.
     """
     try:
-        model_type = os.getenv("MODEL_TYPE")
-        model_name = "GEMINI_MODEL_NAME" if model_type == "gemini" else "LLAMA_MODEL_NAME"
-        model_name = os.getenv(model_name)
         response = generate_response(
             query=query,
             documents=retrieved_documents,
-            model_name=model_name,
-            model_type=model_type
+            model_name=os.getenv("MODEL_NAME") if os.getenv("MODEL_NAME", None) else "gemini-1.5-flash"
         )
         return response
     except Exception as e:
