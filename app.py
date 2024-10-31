@@ -236,21 +236,24 @@ def cleanup(directory_paths: List) -> None:
             logging.warning(f"Directory '{directory_path}' content does not exist.")
 
 
-def _load_LLM_perform_query(search_type: str):
+def _load_LLM_perform_query(query: str, search_type: str):
     # Load faiss model when starting the script
     load_faiss_model()
 
-    with open("prompt.txt", "r") as file:
-        query = file.read()
     # verify the prompt query
     if not query:
         print_decorative_box("No query found in prompt template!!!")
-        return
     else:
         retrieved_documents = query_documents(query)
         response = generate_response_for_query(query, retrieved_documents, search_type)
-        with open("response.txt", "w") as file:
+        with open("response.txt", "a") as file:
+            # write a query for reference
+            file.write(f"\nquery: {query}")
+
+            # update the response into file
             file.write(response)
+            file.write("+" * 100 + "\n")
+        logging.info(f"Gemini Response: \n{response}")
         print_decorative_box(f"Generated response successfully.")
 
 
@@ -266,39 +269,80 @@ def main() -> None:
     Returns:
         None
     """
-    try:
-        logging.info("Hello! Welcome to the local LLM...\n")
-        logging.info(
-            "This is a simple, fast-response document search LLM."
-            "\nPlease start by indexing the documents you want to embed. You can then proceed with querying."
-        )
-        action = input(
-            f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: "
-        )[0]
+    logging.info("Hello! Welcome to the local LLM...\n")
+    logging.info(
+        "This is a simple, fast-response document search LLM."
+        "\nPlease start by indexing the documents you want to embed. You can then proceed with querying."
+    )
+    while True:
+        try:
+            action = input(
+                f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: "
+            )[0]
 
-        if action == "1":
-            logging.info("Performing clean up action")
-            # remove the uploaded_documents and static folder
-            directory_paths = [
-                os.path.join(os.getcwd(), "uploaded_documents"),
-                os.path.join(os.getcwd(), "retrieved_documents"),
-            ]
-            cleanup(directory_paths)
-            logging.info("Clean up process completed successfully")
+            if action == "1":
+                logging.info("Performing clean up action")
+                # remove the uploaded_documents and static folder
+                directory_paths = [
+                    os.path.join(os.getcwd(), "uploaded_documents"),
+                    os.path.join(os.getcwd(), "retrieved_documents"),
+                ]
+                cleanup(directory_paths)
+                logging.info("Clean up process completed successfully")
 
-            files = input("Provide the files by separating spaces\nFiles: ").split(" ")
+                files = input("Provide the files by separating spaces\nFiles: ").split(
+                    " "
+                )
 
-            uploaded_files = upload_files(files)
-            uploaded_files = index_documents_for_files(uploaded_files)
-            logging.info(f"Files uploaded and indexed: {uploaded_files}")
+                uploaded_files = upload_files(files)
+                uploaded_files = index_documents_for_files(uploaded_files)
+                logging.info(f"Files uploaded and indexed: {uploaded_files}")
 
-            # Generate response
-            query_action = input(
-                "Are you want to perform a query ? Yes/No\n Your Choice: "
-            )
-            if query_action.lower() == "yes":
+                # Generate response
+                query_action = input(
+                    "Are you want to perform a query ? Yes/No\n Your Choice: "
+                )
+                if query_action.lower() == "yes":
+                    logging.info(
+                        "Enter Your Query: (type '::END' once the query finish)"
+                    )
+                    lines = []
+                    while True:
+                        line = input()
+                        if line.lower().strip().endswith("::end"):
+                            line.strip().replace("::end", "")
+                            line.strip().replace("::END", "")
+                            break
+                        lines.append(line)
+                    query = "\n".join(lines)
+                    search_type = input(
+                        "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: "
+                    )[0]
+                    search_type = (
+                        "text-generation"
+                        if search_type.lower() == "0"
+                        else "code-generation"
+                    )
+                    logging.info(f"You have selected search type: {search_type}")
+                    _load_LLM_perform_query(query=query, search_type=search_type)
+                else:
+                    # exit the loop
+                    logging.info(
+                        "Exiting the prompt. you have given 'no' for exit/might be wrong input."
+                    )
+                    break
+            else:
+                # Generate response
+                logging.info("Enter Your Query: (type '::END' once the query finish)")
+                lines = []
+                while True:
+                    line = input()
+                    if line[-5:].lower().strip() == "::end":
+                        break
+                    lines.append(line)
+                query = "\n".join(lines)
                 search_type = input(
-                    "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: "
+                    "Select your search type: text-generation(0)/code-generation(1) ?\nYour Choice: "
                 )[0]
                 search_type = (
                     "text-generation"
@@ -306,25 +350,20 @@ def main() -> None:
                     else "code-generation"
                 )
                 logging.info(f"You have selected search type: {search_type}")
-                _load_LLM_perform_query(search_type=search_type)
-        else:
-            # Generate response
-            quit_status = input(
-                "Assuming you have added your query on prompt.txt file and Embeddings completed for query document. If not please enter 'quit' and try again... for continue please press Enter"
+                _load_LLM_perform_query(query=query, search_type=search_type)
+        except Exception as exc:
+            logging.error(traceback.format_exc())
+            print_decorative_box(f"Failed!!!! {exc}")
+
+        next_action = input(
+            "Are you want to continue for next query ? Yes/No\nYour choice: "
+        )
+        if next_action.lower().strip() == "no":
+            # exit the loop
+            logging.info(
+                "Exiting the prompt. you have given 'no' for exit/might be wrong input."
             )
-            if quit_status.lower().strip() == "quit":
-                return
-            search_type = input(
-                "Select your search type: text-generation(0)/code-generation(1) ?\nYour Choice: "
-            )[0]
-            search_type = (
-                "text-generation" if search_type.lower() == "0" else "code-generation"
-            )
-            logging.info(f"You have selected search type: {search_type}")
-            _load_LLM_perform_query(search_type=search_type)
-    except Exception as exc:
-        logging.error(traceback.format_exc())
-        print_decorative_box(f"Failed!!!! {exc}")
+            break
 
 
 if __name__ == "__main__":
