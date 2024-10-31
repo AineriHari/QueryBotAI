@@ -24,7 +24,9 @@ from sentence_transformers import SentenceTransformer
 logging.basicConfig(level=logging.INFO)
 
 
-def analyze_chunk_with_llm(model: genai.GenerativeModel, chunk: bytes, query: str) -> Tuple[bool, bytes]:
+def analyze_chunk_with_llm(
+    model: genai.GenerativeModel, chunk: bytes, query: str
+) -> Tuple[bool, bytes]:
     """
     Analyzes a text chunk to determine its relevance to a user query using a Generative AI model.
 
@@ -39,24 +41,26 @@ def analyze_chunk_with_llm(model: genai.GenerativeModel, chunk: bytes, query: st
                             and the second element is the original text chunk.
     """
     # Define the prompt
-    content = [f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
-               f"answer to the question?\n\n{chunk}\n\nAnswer 'yes' or 'no'."]
+    content = [
+        f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
+        f"answer to the question?\n\n{chunk}\n\nAnswer 'yes' or 'no'."
+    ]
 
     # Generate response using the Gemini model
     response = model.generate_content(content)
 
     # return the boolean and chunk
-    return response.text.strip().lower() == 'yes', chunk
+    return response.text.strip().lower() == "yes", chunk
 
 
 def retrieve_documents(
-        faiss_index:IndexFlatL2,
-        model: SentenceTransformer,
-        query: str,
-        faiss_index_file_mapping: str = '/.faiss/faiss_index_file_mapping.json',
-        model_name: str = "gemini-1.5-flash",
-        k: int =3,
-        distance_threshold: float = None
+    faiss_index: IndexFlatL2,
+    model: SentenceTransformer,
+    query: str,
+    faiss_index_file_mapping: str = "/.faiss/faiss_index_file_mapping.json",
+    model_name: str = "gemini-1.5-flash",
+    k: int = 3,
+    distance_threshold: float = None,
 ):
     """
     Retrieves relevant documents based on the user query using FAISS.
@@ -77,18 +81,18 @@ def retrieve_documents(
         logging.info(f"Retrieving documents for query: {query}")
 
         # Load filenames mapping from the JSON file
-        with open(faiss_index_file_mapping, 'r') as f:
+        with open(faiss_index_file_mapping, "r") as f:
             filenames_mapping = json.load(f)
-        
+
         # Encode the query into embeddings
         query_embedding = model.encode([query], convert_to_tensor=False)
-        query_embedding = np.array(query_embedding).astype('float32')
+        query_embedding = np.array(query_embedding).astype("float32")
 
         # Search the FAISS index
         distances, indices = faiss_index.search(query_embedding, k)
-        
+
         files = []
-        session_documents_folder = os.path.abspath(os.path.join('retrieved_documents'))
+        session_documents_folder = os.path.abspath(os.path.join("retrieved_documents"))
         os.makedirs(session_documents_folder, exist_ok=True)
 
         # Load the Gemini model
@@ -98,20 +102,24 @@ def retrieve_documents(
         for dist, idx in zip(distances[0], indices[0]):
             # Skip documents that do not meet the distance threshold if provided
             if distance_threshold is not None and dist > distance_threshold:
-                logging.info(f"Document at index {idx} skipped due to distance threshold: {dist}")
+                logging.info(
+                    f"Document at index {idx} skipped due to distance threshold: {dist}"
+                )
                 continue
 
             # Fetch the document filename from the filenames_mapping based on the FAISS index
             doc_filename = filenames_mapping.get(str(idx), None)
-            
+
             if doc_filename:
                 # Path to the uploaded document
-                doc_path = os.path.abspath(os.path.join('uploaded_documents', doc_filename))
-                
+                doc_path = os.path.abspath(
+                    os.path.join("uploaded_documents", doc_filename)
+                )
+
                 if os.path.exists(doc_path):
                     dest_path = os.path.join(
                         session_documents_folder,
-                        f"{idx}{os.path.splitext(doc_filename)[-1]}"
+                        f"{idx}{os.path.splitext(doc_filename)[-1]}",
                     )
 
                     # Delete if destination file already exists
@@ -119,25 +127,25 @@ def retrieve_documents(
                         os.remove(dest_path)
 
                     # Copy document to the static folder
-                    with open(doc_path, 'rb') as f:
+                    with open(doc_path, "rb") as f:
                         content = f.read()
 
                         # Analyze if the document is relevant to query
                         is_relevant, useful_chunk = analyze_chunk_with_llm(
-                            model=model,
-                            chunk=content,
-                            query=query
+                            model=model, chunk=content, query=query
                         )
-                        logging.info(f"Is relevant status: {is_relevant} for document: {doc_path}")
+                        logging.info(
+                            f"Is relevant status: {is_relevant} for document: {doc_path}"
+                        )
                         if not is_relevant:
                             # Skip if the document is not relevant
                             continue
 
                         # Save the relevant chunk to the static folder
-                        with open(dest_path, 'wb') as f:
+                        with open(dest_path, "wb") as f:
                             f.write(useful_chunk)
                         logging.info(f"Saved document: {dest_path}")
-                    
+
                     # Store the relative path from the static folder
                     files.append(dest_path)
                     logging.info(f"Added document to list: {dest_path}")
@@ -145,7 +153,7 @@ def retrieve_documents(
                     logging.warning(f"Document not found: {doc_path}")
             else:
                 logging.warning(f"No filename found for index {idx}")
-        
+
         logging.info(f"Total {len(files)} documents retrieved. Paths: {files}")
         return files
     except Exception as e:

@@ -57,24 +57,24 @@ def read_file_with_fallback(file_path: str) -> str:
     Returns:
         str: The contents of the file as a string.
     """
-    with open(file_path, 'rb') as file:
+    with open(file_path, "rb") as file:
         raw_data = file.read()
-        detected_encoding = chardet.detect(raw_data)['encoding']
-    
+        detected_encoding = chardet.detect(raw_data)["encoding"]
+
     try:
         # Attempt to read the file with the detected encoding
-        with open(file_path, 'r', encoding=detected_encoding) as file:
+        with open(file_path, "r", encoding=detected_encoding) as file:
             return file.read()
     except UnicodeDecodeError:
         # Fallback to a common encoding like 'latin1'
-        with open(file_path, 'r', encoding='latin1') as file:
+        with open(file_path, "r", encoding="latin1") as file:
             return file.read()
 
 
 def index_documents(
-        folder_path: str,
-        index_path: str = None,
-        indexer_model: str = 'paraphrase-MiniLM-L6-v2'
+    folder_path: str,
+    index_path: str = None,
+    indexer_model: str = "paraphrase-MiniLM-L6-v2",
 ) -> faiss.Index:
     """
     Indexes documents in the specified folder using FAISS.
@@ -124,15 +124,17 @@ def index_documents(
         if index_path:
             # If directory path is given, append a filename like 'index.faiss'
             if os.path.isdir(index_path):
-                index_faiss_path = os.path.join(index_path, 'index.faiss')
+                index_faiss_path = os.path.join(index_path, "index.faiss")
                 faiss.write_index(index, index_faiss_path)
 
             # Create the filenames mapping based on the consistent document order
             filenames_mapping = create_filenames_mapping(filenames)
 
             # Save filenames mapping to a JSON file
-            mapping_path = os.path.abspath(os.path.join(index_path, "faiss_index_file_mapping.json"))
-            with open(mapping_path, 'w') as f:
+            mapping_path = os.path.abspath(
+                os.path.join(index_path, "faiss_index_file_mapping.json")
+            )
+            with open(mapping_path, "w") as f:
                 json.dump(filenames_mapping, f)
 
         return index

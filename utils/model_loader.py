@@ -37,7 +37,7 @@ def load_model(model_name):
     google_api_key = os.getenv("GOOGLE_API_KEY")
     if not google_api_key:
         raise ValueError("GOOGLE_API_KEY not found in .env file")
-    
+
     # configure Google API Key
     genai.configure(api_key=google_api_key)
 
