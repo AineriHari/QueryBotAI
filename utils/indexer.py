@@ -17,7 +17,7 @@ import numpy as np
 import faiss
 import logging
 import json
-from typing import Tuple, List, Dict
+from typing import List, Dict
 from sentence_transformers import SentenceTransformer
 
 

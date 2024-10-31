@@ -11,7 +11,7 @@ Key Functions:
 
 import os
 import numpy as np
-from typing import Tuple, Dict
+from typing import Tuple
 import google.generativeai as genai
 from utils.model_loader import load_model
 from faiss.swigfaiss import IndexFlatL2

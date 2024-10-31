@@ -39,11 +39,13 @@ logging.basicConfig(level=logging.INFO)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Configure folders
-UPLOAD_FOLDER = 'uploaded_documents'
-RETRIVE_FOLDER = 'retrieved_documents'
-INDEX_FOLDER = os.path.abspath(os.path.join(os.getcwd(), '.faiss'))
+UPLOAD_FOLDER = "uploaded_documents"
+RETRIVE_FOLDER = "retrieved_documents"
+INDEX_FOLDER = os.path.abspath(os.path.join(os.getcwd(), ".faiss"))
 FAISS_INDEX_FILE = os.path.abspath(os.path.join(INDEX_FOLDER, "index.faiss"))
-FAISS_INDEX_FILE_MAPPING = os.path.abspath(os.path.join(INDEX_FOLDER, "faiss_index_file_mapping.json"))
+FAISS_INDEX_FILE_MAPPING = os.path.abspath(
+    os.path.join(INDEX_FOLDER, "faiss_index_file_mapping.json")
+)
 
 
 # Create necessary directories if they don't exist
@@ -77,8 +79,7 @@ def load_faiss_model() -> None:
 
             # Load the embedding model (e.g., SentenceTransformer)
             model = SentenceTransformer(
-                'sentence-transformers/paraphrase-MiniLM-L6-v2',
-                local_files_only=True
+                "sentence-transformers/paraphrase-MiniLM-L6-v2", local_files_only=True
             )
             logging.info("SentenceTransformer model loaded")
         except Exception as e:
@@ -101,8 +102,8 @@ def upload_files(files: List) -> List:
     for file in files:
         filename = secure_filename(file)
         file_path = os.path.join(UPLOAD_FOLDER, filename)
-        with open(file, 'r') as fr:
-            with open(file_path, 'w') as fw:
+        with open(file, "r") as fr:
+            with open(file_path, "w") as fw:
                 fw.write(fr.read())
         uploaded_files.append(filename)
         logging.info(f"File saved: {file_path}")
@@ -123,7 +124,7 @@ def index_documents_for_files(uploaded_files: List) -> List:
     if not uploaded_files:
         logging.error("No files to index.")
         return []
-    
+
     try:
         faiss_model = index_documents(UPLOAD_FOLDER, index_path=INDEX_FOLDER)
         logging.info("FAISS Index Model loaded")
@@ -153,15 +154,14 @@ def query_documents(query: str) -> List:
         faiss_index=faiss_model,
         model=model,
         query=query,
-        faiss_index_file_mapping=FAISS_INDEX_FILE_MAPPING
+        faiss_index_file_mapping=FAISS_INDEX_FILE_MAPPING,
     )
     logging.info(f"Retrieved documents: {retrieved_documents}")
     return retrieved_documents
 
 
 def generate_response_for_query(
-        query: str,
-        retrieved_documents: List
+    query: str, retrieved_documents: List, search_type: str
 ) -> str:
     """
     Generates a response based on the input query and retrieved documents.
@@ -177,7 +177,12 @@ def generate_response_for_query(
         response = generate_response(
             query=query,
             documents=retrieved_documents,
-            model_name=os.getenv("MODEL_NAME") if os.getenv("MODEL_NAME", None) else "gemini-1.5-flash"
+            model_name=(
+                os.getenv("MODEL_NAME")
+                if os.getenv("MODEL_NAME", None)
+                else "gemini-1.5-flash"
+            ),
+            search_type=search_type,
         )
         return response
     except Exception as e:
@@ -224,9 +229,29 @@ def cleanup(directory_paths: List) -> None:
                 os.remove(file_path)
             elif os.path.isdir(file_path):
                 shutil.rmtree(file_path)
-            logging.info(f"Directory '{filename}' and all its contents have been removed.")
+            logging.info(
+                f"Directory '{filename}' and all its contents have been removed."
+            )
         else:
             logging.warning(f"Directory '{directory_path}' content does not exist.")
+
+
+def _load_LLM_perform_query(search_type: str):
+    # Load faiss model when starting the script
+    load_faiss_model()
+
+    with open("prompt.txt", "r") as file:
+        query = file.read()
+    # verify the prompt query
+    if not query:
+        print_decorative_box("No query found in prompt template!!!")
+        return
+    else:
+        retrieved_documents = query_documents(query)
+        response = generate_response_for_query(query, retrieved_documents, search_type)
+        with open("response.txt", "w") as file:
+            file.write(response)
+        print_decorative_box(f"Generated response successfully.")
 
 
 def main() -> None:
@@ -243,16 +268,20 @@ def main() -> None:
     """
     try:
         logging.info("Hello! Welcome to the local LLM...\n")
-        logging.info("This is a simple, fast-response document search LLM."
-                     "\nPlease start by indexing the documents you want to embed. You can then proceed with querying.")
-        action = input(f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: ")[0]
+        logging.info(
+            "This is a simple, fast-response document search LLM."
+            "\nPlease start by indexing the documents you want to embed. You can then proceed with querying."
+        )
+        action = input(
+            f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: "
+        )[0]
 
         if action == "1":
             logging.info("Performing clean up action")
             # remove the uploaded_documents and static folder
             directory_paths = [
                 os.path.join(os.getcwd(), "uploaded_documents"),
-                os.path.join(os.getcwd(), "retrieved_documents")
+                os.path.join(os.getcwd(), "retrieved_documents"),
             ]
             cleanup(directory_paths)
             logging.info("Clean up process completed successfully")
@@ -262,21 +291,37 @@ def main() -> None:
             uploaded_files = upload_files(files)
             uploaded_files = index_documents_for_files(uploaded_files)
             logging.info(f"Files uploaded and indexed: {uploaded_files}")
-        else:
-            # Load faiss model when starting the script
-            load_faiss_model()
 
-            with open("prompt.txt", "r") as file:
-                query = file.read()
-            # verify the prompt query
-            if not query:
-                print_decorative_box("No query found in prompt template!!!")
-            else:
-                retrieved_documents = query_documents(query)
-                response = generate_response_for_query(query, retrieved_documents)
-                with open("response.txt", "w") as file:
-                    file.write(response)
-                print_decorative_box(f"Generated response successfully.")
+            # Generate response
+            query_action = input(
+                "Are you want to perform a query ? Yes/No\n Your Choice: "
+            )
+            if query_action.lower() == "yes":
+                search_type = input(
+                    "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: "
+                )[0]
+                search_type = (
+                    "text-generation"
+                    if search_type.lower() == "0"
+                    else "code-generation"
+                )
+                logging.info(f"You have selected search type: {search_type}")
+                _load_LLM_perform_query(search_type=search_type)
+        else:
+            # Generate response
+            quit_status = input(
+                "Assuming you have added your query on prompt.txt file and Embeddings completed for query document. If not please enter 'quit' and try again... for continue please press Enter"
+            )
+            if quit_status.lower().strip() == "quit":
+                return
+            search_type = input(
+                "Select your search type: text-generation(0)/code-generation(1) ?\nYour Choice: "
+            )[0]
+            search_type = (
+                "text-generation" if search_type.lower() == "0" else "code-generation"
+            )
+            logging.info(f"You have selected search type: {search_type}")
+            _load_LLM_perform_query(search_type=search_type)
     except Exception as exc:
         logging.error(traceback.format_exc())
         print_decorative_box(f"Failed!!!! {exc}")

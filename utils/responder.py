@@ -18,10 +18,15 @@ from utils.model_loader import load_model
 logging.basicConfig(level=logging.INFO)
 
 
+SYSTEM_PROMPT = "You are a Python full stack developer with expertise in JavaScript, CSS, HTML, Django, and Python. Respond only with code that includes newly added logic or modified functions, without repeating the entire file structure. When providing code, include only what’s necessary for the update: new functions, modified logic within existing functions, and any additional import statements required to make the additions functional."
+USER_PROMPT = "Based on the information from indexing, generate code updates that reflect newly added logic or changes to existing functions. Avoid re-creating the whole file. Focus on additions to the functionality, including only essential new functions and import statements to support these changes. My query is: "
+
+
 def generate_response(
-        query: str,
-        documents: list = None,
-        model_name: str = "gemini-1.5-flash",
+    query: str,
+    documents: list = None,
+    model_name: str = "gemini-1.5-flash",
+    search_type: str = "code-generation",
 ):
     """
     Generates a response using the specified generative AI model.
@@ -40,28 +45,40 @@ def generate_response(
     logging.info(f"Generating response using model: {model_name}")
 
     if documents is None or len(documents) == 0:
-        return "No Documents to be loaded for analysis"
+        raise Exception("No Documents to be loaded for analysis")
 
     try:
         # store the content with query and related documents data
-        content = [
-            "system role: You are an assistant providing comprehensive answers based on relevant information.",
-            query,
-        ]
+        chunk_data = ""
         for document in documents:
             if os.path.exists(document):
-                with open(document, 'rb') as file:
+                with open(document, "rb") as file:
                     file_data = file.read()
 
                     # Try to decode the file data as UTF-8 (for text-based files)
                     try:
-                        decoded_content = file_data.decode('utf-8')
-                        content.append(decoded_content)
+                        decoded_content = file_data.decode("utf-8")
+                        chunk_data += decoded_content + "\n"
                     except UnicodeDecodeError:
                         pass
 
                     if not file_data:
                         logging.warning(f"No content found in {document} for analysis.")
+
+        # prepare the generate response content
+        content = (
+            [
+                f"system role: {SYSTEM_PROMPT}",
+                f"User prompt: {USER_PROMPT}{query}",
+                f"Information: {chunk_data}",
+            ]
+            if search_type.lower() == "code-generation"
+            else [
+                "system role: You are an assistant providing comprehensive answers based on relevant information.",
+                f"User prompt: {query}",
+                f"Information: {chunk_data}",
+            ]
+        )
 
         # Load the Gemini model
         model = load_model(model_name)
@@ -72,8 +89,8 @@ def generate_response(
         if response and response.text:
             logging.info("Response generated using Gemini model")
             return response.text
-        else:
-            return "The Gemini model did not generate any text response"
+        logging.error("The Gemini model did not generate any text response")
+        return ""
     except Exception as exc:
         logging.exception(f"Error in Gemini processing: {str(exc)}")
-        return f"An error occurred while processing the document: {str(exc)}"
+        return ""
