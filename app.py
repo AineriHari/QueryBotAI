@@ -253,7 +253,6 @@ def _load_LLM_perform_query(query: str, search_type: str):
             # update the response into file
             file.write(response)
             file.write("+" * 100 + "\n")
-        logging.info(f"Gemini Response: \n{response}")
         print_decorative_box(f"Generated response successfully.")
 
 

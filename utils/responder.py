@@ -84,7 +84,10 @@ def generate_response(
         model = load_model(model_name)
 
         # Generate response using the Gemini model
-        response = model.generate_content(content)
+        response = model.generate_content(content, stream=True)
+
+        for chunk in response:
+            print(chunk.text)
 
         if response and response.text:
             logging.info("Response generated using Gemini model")
