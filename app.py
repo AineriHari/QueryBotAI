@@ -302,44 +302,33 @@ def main() -> None:
                     "Are you want to perform a query ? Yes/No\n Your Choice: "
                 )
                 if query_action.lower() == "yes":
-                    logging.info(
-                        "Enter Your Query: (type '::END' once the query finish)"
-                    )
-                    lines = []
-                    while True:
-                        line = input()
-                        if line.lower().strip().endswith("::end"):
-                            line.strip().replace("::end", "")
-                            line.strip().replace("::END", "")
-                            break
-                        lines.append(line)
-                    query = "\n".join(lines)
+                    query = input("Enter Your Query: ")
                     search_type = input(
                         "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: "
                     )[0]
-                    search_type = (
-                        "text-generation"
-                        if search_type.lower() == "0"
-                        else "code-generation"
-                    )
+
+                    # select the search type
+                    if search_type.lower()[0] == "0":
+                        search_type = "text-generation"
+                    elif search_type.lower()[0] == "1":
+                        search_type = "code-generation"
+                    else:
+                        raise ValueError(
+                            f"You have selected wrong option, Your choice: {query_action}. please try again l;ater!!!"
+                        )
                     logging.info(f"You have selected search type: {search_type}")
                     _load_LLM_perform_query(query=query, search_type=search_type)
-                else:
+                elif query_action == "no":
                     # exit the loop
-                    logging.info(
-                        "Exiting the prompt. you have given 'no' for exit/might be wrong input."
-                    )
+                    logging.info("Thanks for using!!! Exiting the prompt.")
                     break
+                else:
+                    raise ValueError(
+                        f"You have selected wrong option, Your choice: {query_action}. please try again l;ater!!!"
+                    )
             else:
                 # Generate response
-                logging.info("Enter Your Query: (type '::END' once the query finish)")
-                lines = []
-                while True:
-                    line = input()
-                    if line[-5:].lower().strip() == "::end":
-                        break
-                    lines.append(line)
-                query = "\n".join(lines)
+                query = input("Enter Your Query: ")
                 search_type = input(
                     "Select your search type: text-generation(0)/code-generation(1) ?\nYour Choice: "
                 )[0]

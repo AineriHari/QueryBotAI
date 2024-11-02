@@ -11,20 +11,18 @@ Key Functions:
 
 import os
 import logging
+from typing import List
 from utils.model_loader import load_model
+from utils.preprompts import TextGeneration, CodeGeneration
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
 
-SYSTEM_PROMPT = "You are a Python full stack developer with expertise in JavaScript, CSS, HTML, Django, and Python. Respond only with code that includes newly added logic or modified functions, without repeating the entire file structure. When providing code, include only what’s necessary for the update: new functions, modified logic within existing functions, and any additional import statements required to make the additions functional."
-USER_PROMPT = "Based on the information from indexing, generate code updates that reflect newly added logic or changes to existing functions. Avoid re-creating the whole file. Focus on additions to the functionality, including only essential new functions and import statements to support these changes. My query is: "
-
-
 def generate_response(
     query: str,
-    documents: list = None,
+    documents: List[str] = None,
     model_name: str = "gemini-1.5-flash",
     search_type: str = "code-generation",
 ):
@@ -45,55 +43,67 @@ def generate_response(
     logging.info(f"Generating response using model: {model_name}")
 
     if documents is None or len(documents) == 0:
-        raise Exception("No Documents to be loaded for analysis")
+        raise ValueError("No Documents to be loaded for analysis")
 
-    try:
-        # store the content with query and related documents data
-        chunk_data = ""
-        for document in documents:
-            if os.path.exists(document):
-                with open(document, "rb") as file:
-                    file_data = file.read()
+    def read_documents(doc_paths: List[str]) -> str:
+        content = ""
+        for path in doc_paths:
+            if not os.path.exists(path):
+                logging.warning(f"Document not found: {path}")
+                continue
+            with open(path, "rb") as file:
+                file_data = file.read()
+                try:
+                    decoded_content = file_data.decode("utf-8")
+                    content += (
+                        f"\n[Document: {os.path.basename(path)}]\n{decoded_content}\n"
+                    )
+                except UnicodeDecodeError:
+                    logging.warning(f"Skipping non-text content in {path}")
+        return content
 
-                    # Try to decode the file data as UTF-8 (for text-based files)
-                    try:
-                        decoded_content = file_data.decode("utf-8")
-                        chunk_data += decoded_content + "\n"
-                    except UnicodeDecodeError:
-                        pass
+    # Read and prepare content from documents
+    document_content = read_documents(documents)
 
-                    if not file_data:
-                        logging.warning(f"No content found in {document} for analysis.")
+    if not document_content:
+        logging.warning("No readable content found in provided documents.")
 
-        # prepare the generate response content
-        content = (
-            [
-                f"system role: {SYSTEM_PROMPT}",
-                f"User prompt: {USER_PROMPT}{query}",
-                f"Information: {chunk_data}",
-            ]
-            if search_type.lower() == "code-generation"
-            else [
-                "system role: You are an assistant providing comprehensive answers based on relevant information.",
-                f"User prompt: {query}",
-                f"Information: {chunk_data}",
-            ]
+    # Select appropriate prompt template
+    if search_type.lower() == "code-generation":
+        prompt_template = CodeGeneration()
+        user_prompt = (
+            prompt_template.USER_PROMPT.format(query=query)
+            + "\nExisting Code:\n"
+            + document_content.strip()
         )
+    else:
+        prompt_template = TextGeneration()
+        user_prompt = prompt_template.USER_PROMPT.format(query=query)
 
-        # Load the Gemini model
+    # Prepare content for model input
+    content = [
+        f"System Prompt: {prompt_template.SYSTEM_PROMPT}",
+        f"User Prompt: {user_prompt}",
+        f"Information: {document_content.strip()}",
+    ]
+
+    # Load the Gemini model
+    try:
         model = load_model(model_name)
-
-        # Generate response using the Gemini model
         response = model.generate_content(content, stream=True)
 
+        final_response = ""
         for chunk in response:
             print(chunk.text)
+            final_response += chunk.text
 
-        if response and response.text:
-            logging.info("Response generated using Gemini model")
-            return response.text
+        if final_response:
+            logging.info("Response generated successfully")
+            return final_response
+
         logging.error("The Gemini model did not generate any text response")
         return ""
+
     except Exception as exc:
-        logging.exception(f"Error in Gemini processing: {str(exc)}")
+        logging.exception(f"Error in model processing: {exc}")
         return ""

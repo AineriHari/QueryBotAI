@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def analyze_chunk_with_llm(
-    model: genai.GenerativeModel, chunk: bytes, query: str
+    model: genai.GenerativeModel, chunk: bytes, query: str, max_retries: int = 2
 ) -> Tuple[bool, bytes]:
     """
     Analyzes a text chunk to determine its relevance to a user query using a Generative AI model.
@@ -34,23 +34,36 @@ def analyze_chunk_with_llm(
         model (genai.GenerativeModel): An instance of the GenerativeModel used to generate responses.
         chunk (bytes): The text chunk that needs to be analyzed for relevance.
         query (str): The user question to which the relevance of the text chunk will be evaluated.
+        max_retries (int): Number of retries allowed if relevance is unclear.
 
     Returns:
         Tuple[bool, bytes]: A tuple where the first element is a boolean indicating
                             whether the chunk is relevant to the query ('yes' or 'no'),
                             and the second element is the original text chunk.
     """
-    # Define the prompt
-    content = [
-        f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
-        f"answer to the question?\n\n{chunk}\n\nAnswer 'yes' or 'no'."
-    ]
+    for attempt in range(max_retries + 1):
+        # Define the prompt
+        content = [
+            f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
+            f"answer the question?\n\n{chunk}\n\nAnswer 'yes' or 'no'."
+        ]
 
-    # Generate response using the Gemini model
-    response = model.generate_content(content)
+        # Generate response using the Gemini model
+        response = model.generate_content(content)
+        relevance = response.text.strip().lower()
 
-    # return the boolean and chunk
-    return response.text.strip().lower() == "yes", chunk
+        # If response is "yes" or it's the last attempt, return the result
+        if relevance == "yes":
+            return True, chunk
+        elif attempt == max_retries:
+            logging.info("Maximum retries reached; document marked as not relevant.")
+            return False, chunk
+        else:
+            logging.info(
+                f"Retrying relevance check (attempt {attempt + 1}/{max_retries})..."
+            )
+
+    return False, chunk
 
 
 def retrieve_documents(
