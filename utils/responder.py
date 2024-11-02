@@ -14,6 +14,7 @@ import logging
 from typing import List
 from utils.model_loader import load_model
 from utils.preprompts import TextGeneration, CodeGeneration
+from termcolor import colored
 
 
 # Set up logging
@@ -94,7 +95,7 @@ def generate_response(
 
         final_response = ""
         for chunk in response:
-            print(chunk.text)
+            print(colored(chunk.text, "green"))
             final_response += chunk.text
 
         if final_response:

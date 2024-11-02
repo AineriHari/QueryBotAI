@@ -5,3 +5,4 @@ faiss-cpu
 sentence-transformers
 chardet
 python-docx
+termcolor

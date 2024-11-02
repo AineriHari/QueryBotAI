@@ -28,6 +28,7 @@ from werkzeug.utils import secure_filename
 from sentence_transformers import SentenceTransformer
 from faiss.swigfaiss import IndexFlatL2
 from dotenv import load_dotenv
+from termcolor import colored
 
 
 # Load environment variables from .env file
@@ -266,7 +267,7 @@ def _load_LLM_perform_query(query: str, search_type: str):
         with open("Chat_History.md", "a") as file:
             # write a query for reference
             file.write(response)
-        print_decorative_box(f"Generated response successfully.")
+        print_decorative_box("Generated response successfully.")
 
 
 def _select_search_type(search_type: str) -> str:
@@ -324,7 +325,10 @@ def main() -> None:
         try:
             if not indexed:
                 action = input(
-                    f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: "
+                    colored(
+                        f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: ",
+                        "red",
+                    )
                 )[0]
             else:
                 action = "2"
@@ -339,9 +343,9 @@ def main() -> None:
                 cleanup(directory_paths)
                 logging.info("Clean up process completed successfully")
 
-                files = input("Provide the files by separating spaces\nFiles: ").split(
-                    " "
-                )
+                files = input(
+                    colored("Provide the files by separating spaces\nFiles: ", "yellow")
+                ).split(" ")
 
                 uploaded_files = upload_files(files)
                 uploaded_files = index_documents_for_files(uploaded_files)
@@ -353,13 +357,18 @@ def main() -> None:
                 indexed = True
 
             # Generate response
-            query = input("Enter your next query, or type 'quit' to exit: ")
+            query = input(
+                colored("Enter your next query, or type 'quit' to exit: ", "red")
+            )
             if query.strip().lower() == "quit":
                 # exit the loop
                 logging.info("Thanks for using!!! Exiting the prompt.")
                 break
             search_type = input(
-                "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: "
+                colored(
+                    "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: ",
+                    "yellow",
+                )
             )[0]
 
             # select the search type
