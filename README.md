@@ -34,14 +34,16 @@ To set up your environment, follow these steps:
 
    - On Windows:
 
-   ````bash
+   ```bash
    <env_name>\Scripts\activate
+   ```
 
    - On macOS/Linux:
+
    ```bash
    source <env_name>/bin/activate
 
-   ````
+   ```
 
 3. **Install Required Packages**
    Install the necessary dependencies by running:
@@ -63,13 +65,17 @@ To set up your environment, follow these steps:
    ```
 
 5. **Run the Application**
+
    - Start the application by running:
+
    ```bash
    python app.py
+   ```
+
    - You will be prompted to choose between two options:
+
    1. Index: Uploads documents for embedding generation. This will prepare the documents for querying.
    2. Query: Allows you to perform searches and get responses based on indexed content.
-   ```
 
 ## Workflow
 
