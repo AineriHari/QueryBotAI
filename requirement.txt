@@ -1,11 +1,7 @@
 python-dotenv
 google-generativeai
 Werkzeug
-markdown
 faiss-cpu
 sentence-transformers
 chardet
 python-docx
-torch
-sentencepiece
-bitsandbytes

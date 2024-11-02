@@ -19,6 +19,7 @@ import traceback
 import shutil
 import faiss
 import logging
+from datetime import datetime
 from typing import List
 from utils.indexer import index_documents
 from utils.retriever import retrieve_documents
@@ -237,6 +238,20 @@ def cleanup(directory_paths: List) -> None:
 
 
 def _load_LLM_perform_query(query: str, search_type: str):
+    """
+    Loads the FAISS model, processes a given query, and generates a response based on the selected search type.
+
+    This function verifies if a query is provided, retrieves relevant documents, and generates a response
+    using the specified search type (e.g., text generation or code generation). It then logs the query and
+    response details to a file named 'Chat_History.md' with a timestamp.
+
+    Args:
+        query (str): The query string to search and generate a response for.
+        search_type (str): The type of search to be performed, either 'text-generation' or 'code-generation'.
+
+    Returns:
+        None
+    """
     # Load faiss model when starting the script
     load_faiss_model()
 
@@ -246,14 +261,43 @@ def _load_LLM_perform_query(query: str, search_type: str):
     else:
         retrieved_documents = query_documents(query)
         response = generate_response_for_query(query, retrieved_documents, search_type)
-        with open("response.txt", "a") as file:
+        query_data = f"\n**Query (at {datetime.now().strftime('%d %b %Y, %-I %p %M Secs')}): {query}**\n"
+        response = query_data + response + "\n" + "+" * 100 + "\n"
+        with open("Chat_History.md", "a") as file:
             # write a query for reference
-            file.write(f"\nquery: {query}")
-
-            # update the response into file
             file.write(response)
-            file.write("+" * 100 + "\n")
         print_decorative_box(f"Generated response successfully.")
+
+
+def _select_search_type(search_type: str) -> str:
+    """
+    Determines the appropriate search type based on user input and logs the selection.
+
+    This function interprets the search type input (either '0' for text generation or '1' for code generation).
+    If an invalid option is provided, it raises a ValueError.
+
+    Args:
+        search_type (str): A string representation of the search type, where '0' represents text generation
+                           and '1' represents code generation.
+
+    Returns:
+        str: The resolved search type, either 'text-generation' or 'code-generation'.
+
+    Raises:
+        ValueError: If an invalid search type is provided.
+    """
+    # select the search type
+    if int(search_type.lower()[0]) == 0:
+        search_type = "text-generation"
+    elif int(search_type.lower()[0]) == 1:
+        search_type = "code-generation"
+    else:
+        raise ValueError(
+            f"You have selected wrong option, Your choice: {search_type}. please try again later!!!"
+        )
+    logging.info(f"You have selected search type: {search_type}")
+
+    return search_type
 
 
 def main() -> None:
@@ -273,11 +317,17 @@ def main() -> None:
         "This is a simple, fast-response document search LLM."
         "\nPlease start by indexing the documents you want to embed. You can then proceed with querying."
     )
+
+    indexed = False
+
     while True:
         try:
-            action = input(
-                f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: "
-            )[0]
+            if not indexed:
+                action = input(
+                    f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: "
+                )[0]
+            else:
+                action = "2"
 
             if action == "1":
                 logging.info("Performing clean up action")
@@ -296,64 +346,30 @@ def main() -> None:
                 uploaded_files = upload_files(files)
                 uploaded_files = index_documents_for_files(uploaded_files)
                 logging.info(f"Files uploaded and indexed: {uploaded_files}")
+                indexed = True
 
-                # Generate response
-                query_action = input(
-                    "Are you want to perform a query ? Yes/No\n Your Choice: "
-                )
-                if query_action.lower() == "yes":
-                    query = input("Enter Your Query: ")
-                    search_type = input(
-                        "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: "
-                    )[0]
+            # if the action is "2", don't show the Index and Query action
+            if action == "2":
+                indexed = True
 
-                    # select the search type
-                    if search_type.lower()[0] == "0":
-                        search_type = "text-generation"
-                    elif search_type.lower()[0] == "1":
-                        search_type = "code-generation"
-                    else:
-                        raise ValueError(
-                            f"You have selected wrong option, Your choice: {search_type}. please try again later!!!"
-                        )
-                    logging.info(f"You have selected search type: {search_type}")
-                    _load_LLM_perform_query(query=query, search_type=search_type)
-                elif query_action == "no":
-                    # exit the loop
-                    logging.info("Thanks for using!!! Exiting the prompt.")
-                    break
-                else:
-                    raise ValueError(
-                        f"You have selected wrong option, Your choice: {query_action}. please try again later!!!"
-                    )
-            else:
-                # Generate response
-                query = input("Enter Your Query: ")
-                search_type = input(
-                    "Select your search type: text-generation(0)/code-generation(1) ?\nYour Choice: "
-                )[0]
-                # select the search type
-                if search_type.lower()[0] == "0":
-                    search_type = "text-generation"
-                elif search_type.lower()[0] == "1":
-                    search_type = "code-generation"
-                else:
-                    raise ValueError(
-                        f"You have selected wrong option, Your choice: {search_type}. please try again later!!!"
-                    )
-                logging.info(f"You have selected search type: {search_type}")
-                _load_LLM_perform_query(query=query, search_type=search_type)
+            # Generate response
+            query = input("Enter your next query, or type 'quit' to exit: ")
+            if query.strip().lower() == "quit":
+                # exit the loop
+                logging.info("Thanks for using!!! Exiting the prompt.")
+                break
+            search_type = input(
+                "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: "
+            )[0]
+
+            # select the search type
+            search_type = _select_search_type(search_type)
+
+            # Load the LLM to perform query
+            _load_LLM_perform_query(query=query, search_type=search_type)
         except Exception as exc:
             logging.error(traceback.format_exc())
             print_decorative_box(f"Failed!!!! {exc}")
-
-        next_action = input(
-            "Are you want to continue for next query ? Yes/No\nYour choice: "
-        )
-        if next_action.lower().strip() == "no":
-            # exit the loop
-            logging.info("Thanks for using!!! Exiting the prompt.")
-            break
 
 
 if __name__ == "__main__":

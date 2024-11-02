@@ -77,59 +77,6 @@ To set up your environment, follow these steps:
    1. Index: Uploads documents for embedding generation. This will prepare the documents for querying.
    2. Query: Allows you to perform searches and get responses based on indexed content.
 
-## Environment Setup
-
-To set up your environment, follow these steps:
-
-1. **Create a Virtual Environment**  
-   Run the following command to create a virtual environment and activate it:
-
-   ```bash
-   python -m venv <env_name>
-
-   ```
-
-2. **Activate the environment**
-
-   - On Windows:
-
-   ````bash
-   <env_name>\Scripts\activate
-
-   - On macOS/Linux:
-   ```bash
-   source <env_name>/bin/activate
-
-   ````
-
-3. **Install Required Packages**
-   Install the necessary dependencies by running:
-
-   ```bash
-   pip install -r requirements.txt
-
-   ```
-
-4. **Configure Google Gemini API Key**
-
-   - Create a Google Gemini API Key if you haven’t already.
-   - Add your API key to the .env file with the following variables:
-
-   ```bash
-   GOOGLE_API_KEY=your_api_key_here
-   MODEL_NAME=your_model_name_here
-
-   ```
-
-5. **Run the Application**
-   - Start the application by running:
-   ```bash
-   python app.py
-   - You will be prompted to choose between two options:
-   1. Index: Uploads documents for embedding generation. This will prepare the documents for querying.
-   2. Query: Allows you to perform searches and get responses based on indexed content.
-   ```
-
 ## Workflow
 
 ### 1. Indexing Documents
