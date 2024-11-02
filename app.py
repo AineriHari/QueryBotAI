@@ -314,7 +314,7 @@ def main() -> None:
                         search_type = "code-generation"
                     else:
                         raise ValueError(
-                            f"You have selected wrong option, Your choice: {query_action}. please try again l;ater!!!"
+                            f"You have selected wrong option, Your choice: {search_type}. please try again later!!!"
                         )
                     logging.info(f"You have selected search type: {search_type}")
                     _load_LLM_perform_query(query=query, search_type=search_type)
@@ -324,7 +324,7 @@ def main() -> None:
                     break
                 else:
                     raise ValueError(
-                        f"You have selected wrong option, Your choice: {query_action}. please try again l;ater!!!"
+                        f"You have selected wrong option, Your choice: {query_action}. please try again later!!!"
                     )
             else:
                 # Generate response
@@ -332,11 +332,15 @@ def main() -> None:
                 search_type = input(
                     "Select your search type: text-generation(0)/code-generation(1) ?\nYour Choice: "
                 )[0]
-                search_type = (
-                    "text-generation"
-                    if search_type.lower() == "0"
-                    else "code-generation"
-                )
+                # select the search type
+                if search_type.lower()[0] == "0":
+                    search_type = "text-generation"
+                elif search_type.lower()[0] == "1":
+                    search_type = "code-generation"
+                else:
+                    raise ValueError(
+                        f"You have selected wrong option, Your choice: {search_type}. please try again later!!!"
+                    )
                 logging.info(f"You have selected search type: {search_type}")
                 _load_LLM_perform_query(query=query, search_type=search_type)
         except Exception as exc:
@@ -348,9 +352,7 @@ def main() -> None:
         )
         if next_action.lower().strip() == "no":
             # exit the loop
-            logging.info(
-                "Exiting the prompt. you have given 'no' for exit/might be wrong input."
-            )
+            logging.info("Thanks for using!!! Exiting the prompt.")
             break
 
 
