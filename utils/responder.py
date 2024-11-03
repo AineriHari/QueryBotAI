@@ -12,6 +12,7 @@ Key Functions:
 import os
 import logging
 from typing import List
+import google.generativeai as genai
 from utils.model_loader import load_model
 from utils.preprompts import TextGeneration, CodeGeneration
 from termcolor import colored
@@ -90,8 +91,26 @@ def generate_response(
 
     # Load the Gemini model
     try:
+        # create a generative config
+        generation_config = genai.types.GenerationConfig(
+            max_output_tokens=1024,
+            temperature=0.7,
+            top_p=0.9,
+        )
         model = load_model(model_name)
-        response = model.generate_content(content, stream=True)
+
+        # get the response
+        if search_type == "code-generation":
+            response = model.generate_content(
+                content,
+                generation_config=generation_config,
+                stream=True,
+                tools="code_execution",
+            )
+        else:
+            response = model.generate_content(
+                content, generation_config=generation_config, stream=True
+            )
 
         final_response = ""
         for chunk in response:

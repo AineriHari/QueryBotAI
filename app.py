@@ -238,7 +238,7 @@ def cleanup(directory_paths: List) -> None:
             logging.warning(f"Directory '{directory_path}' content does not exist.")
 
 
-def _load_LLM_perform_query(query: str, search_type: str):
+def _load_LLM_perform_query(query: str, search_type: str) -> None:
     """
     Loads the FAISS model, processes a given query, and generates a response based on the selected search type.
 
@@ -262,6 +262,8 @@ def _load_LLM_perform_query(query: str, search_type: str):
     else:
         retrieved_documents = query_documents(query)
         response = generate_response_for_query(query, retrieved_documents, search_type)
+        if not response.strip():
+            return
         query_data = f"\n**Query (at {datetime.now().strftime('%d %b %Y, %-I %p %M Secs')}): {query}**\n"
         response = query_data + response + "\n" + "+" * 100 + "\n"
         with open("Chat_History.md", "a") as file:

@@ -132,7 +132,7 @@ def retrieve_documents(
                 if os.path.exists(doc_path):
                     dest_path = os.path.join(
                         session_documents_folder,
-                        f"{idx}{os.path.splitext(doc_filename)[-1]}",
+                        f"{idx}_{doc_filename}",
                     )
 
                     # Delete if destination file already exists
