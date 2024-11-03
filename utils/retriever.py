@@ -43,7 +43,7 @@ def analyze_chunk_with_llm(
                             whether the chunk is relevant to the query ('yes' or 'no'),
                             and the second element is the original text chunk.
     """
-    chunk_document = [chunk[i : i + 512] for i in range(0, len(chunk), 512)]
+    chunk_document = [chunk[i : i + 1024] for i in range(0, len(chunk), 1024)]
     for chunk_data in chunk_document:
         for attempt in range(max_retries + 1):
             try:
@@ -57,7 +57,7 @@ def analyze_chunk_with_llm(
                 response = model.generate_content(
                     content,
                     generation_config=genai.types.GenerationConfig(
-                        max_output_tokens=1024,
+                        max_output_tokens=10,
                         temperature=0.7,
                         top_p=0.9,
                     ),
