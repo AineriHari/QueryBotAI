@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project aims to create a local Large Language Model (LLM) for learning purposes. The LLM will utilize several tools to process documents, generate embeddings, and provide responses based on user queries.
+This project aims to create a lightweight local Large Language Model (LLM) for document based query searchs and code generation. The LLM will utilize several tools to process documents, generate embeddings, and provide responses based on user queries.
 
 ## Tools and Technologies
 
