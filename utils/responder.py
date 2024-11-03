@@ -114,8 +114,15 @@ def generate_response(
 
         final_response = ""
         for chunk in response:
-            print(colored(chunk.text, "green"))
-            final_response += chunk.text
+            if chunk is not None and hasattr(chunk, "text") and chunk.text:
+                print(colored(chunk.text, "green"))
+                final_response += chunk.text
+            else:
+                # Log warning if the chunk is empty and log finish_reason if available
+                finish_reason = getattr(chunk, "finish_reason", None)
+                logging.warning(
+                    f"Received an empty chunk. Finish reason: {finish_reason} - Skipping..."
+                )
 
         if final_response:
             logging.info("Response generated successfully")

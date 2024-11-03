@@ -10,7 +10,9 @@ Key Functions:
 """
 
 import os
+import time
 import numpy as np
+import traceback
 from typing import Tuple
 import google.generativeai as genai
 from utils.model_loader import load_model
@@ -41,27 +43,38 @@ def analyze_chunk_with_llm(
                             whether the chunk is relevant to the query ('yes' or 'no'),
                             and the second element is the original text chunk.
     """
-    for attempt in range(max_retries + 1):
-        # Define the prompt
-        content = [
-            f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
-            f"answer the question?\n\n{chunk}\n\nAnswer 'yes' or 'no'."
-        ]
+    chunk_document = [chunk[i : i + 512] for i in range(0, len(chunk), 512)]
+    for chunk_data in chunk_document:
+        for attempt in range(max_retries + 1):
+            try:
+                # Define the prompt
+                content = [
+                    f"system role: Given the user question: {query}, is the following text relevant and can be useful to "
+                    f"answer the question?\n\n{chunk_data}\n\nAnswer 'yes' or 'no'."
+                ]
 
-        # Generate response using the Gemini model
-        response = model.generate_content(content)
-        relevance = response.text.strip().lower()
+                # Generate response using the Gemini model
+                response = model.generate_content(
+                    content,
+                    generation_config=genai.types.GenerationConfig(
+                        max_output_tokens=1024,
+                        temperature=0.7,
+                        top_p=0.9,
+                    ),
+                )
+                relevance = response.text.strip().lower()
 
-        # If response is "yes" or it's the last attempt, return the result
-        if relevance == "yes":
-            return True, chunk
-        elif attempt == max_retries:
-            logging.info("Maximum retries reached; document marked as not relevant.")
-            return False, chunk
-        else:
-            logging.info(
-                f"Retrying relevance check (attempt {attempt + 1}/{max_retries})..."
-            )
+                # If response is "yes" or it's the last attempt, return the result
+                if relevance == "yes":
+                    return True, chunk
+                elif attempt < max_retries:
+                    time.sleep(1.0)
+                else:
+                    logging.info("Maximum retries reached; moving to next chunk.")
+            except Exception as e:
+                logging.error(f"Error analyzing chunk: {e}")
+                if attempt < max_retries:
+                    time.sleep(1.0)
 
     return False, chunk
 
@@ -170,5 +183,6 @@ def retrieve_documents(
         logging.info(f"Total {len(files)} documents retrieved. Paths: {files}")
         return files
     except Exception as e:
+        logging.exception(traceback.format_exc())
         logging.error(f"Error retrieving documents: {e}")
         return []
