@@ -114,10 +114,10 @@ def generate_response(
 
         final_response = ""
         for chunk in response:
-            if chunk is not None and hasattr(chunk, "text") and chunk.text:
+            try:
                 print(colored(chunk.text, "green"))
                 final_response += chunk.text
-            else:
+            except Exception as _:
                 # Log warning if the chunk is empty and log finish_reason if available
                 finish_reason = getattr(chunk, "finish_reason", None)
                 logging.warning(
