@@ -104,8 +104,8 @@ def upload_files(files: List) -> List:
     for file in files:
         filename = secure_filename(file)
         file_path = os.path.join(UPLOAD_FOLDER, filename)
-        with open(file, "r") as fr:
-            with open(file_path, "w") as fw:
+        with open(file, "rb") as fr:
+            with open(file_path, "wb") as fw:
                 fw.write(fr.read())
         uploaded_files.append(filename)
         logging.info(f"File saved: {file_path}")

@@ -6,3 +6,4 @@ sentence-transformers
 chardet
 python-docx
 termcolor
+PyPDF2

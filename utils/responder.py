@@ -16,6 +16,8 @@ import google.generativeai as genai
 from utils.model_loader import load_model
 from utils.preprompts import TextGeneration, CodeGeneration
 from termcolor import colored
+from PyPDF2 import PdfReader
+from docx import Document
 
 
 # Set up logging
@@ -53,15 +55,36 @@ def generate_response(
             if not os.path.exists(path):
                 logging.warning(f"Document not found: {path}")
                 continue
-            with open(path, "rb") as file:
-                file_data = file.read()
-                try:
-                    decoded_content = file_data.decode("utf-8")
+
+            ext = os.path.splitext(path)[1].lower()
+            try:
+                if ext == [".txt", ".html", ".py", ".css", ".js"]:
+                    with open(path, "r", encoding="utf-8") as file:
+                        content += (
+                            f"\n[Document: {os.path.basename(path)}]\n{file.read()}\n"
+                        )
+                elif ext == ".pdf":
+                    with open(path, "rb") as file:
+                        reader = PdfReader(file)
+                        pdf_content = "\n".join(
+                            page.extract_text()
+                            for page in reader.pages
+                            if page.extract_text()
+                        )
+                        content += (
+                            f"\n[Document: {os.path.basename(path)}]\n{pdf_content}\n"
+                        )
+                elif ext == ".docx":
+                    doc = Document(path)
+                    docx_content = "\n".join(para.text for para in doc.paragraphs)
                     content += (
-                        f"\n[Document: {os.path.basename(path)}]\n{decoded_content}\n"
+                        f"\n[Document: {os.path.basename(path)}]\n{docx_content}\n"
                     )
-                except UnicodeDecodeError:
-                    logging.warning(f"Skipping non-text content in {path}")
+                else:
+                    logging.warning(f"Unsupported file type for reading: {path}")
+            except Exception as e:
+                logging.warning(f"Could not read document {path}: {e}")
+
         return content
 
     # Read and prepare content from documents

@@ -95,7 +95,7 @@ def retrieve_documents(
                     with open(doc_path, "rb") as f:
                         content = f.read()
 
-                        # Save the relevant chunk to the static folder
+                        # Save the relevant chunk to the retrieved folder
                         with open(dest_path, "wb") as f:
                             f.write(content)
                         logging.info(f"Saved document: {dest_path}")
