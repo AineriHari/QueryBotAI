@@ -32,12 +32,6 @@ To set up your environment, follow these steps:
 
 2. **Activate the environment**
 
-   - On Windows:
-
-   ```bash
-   <env_name>\Scripts\activate
-   ```
-
    - On macOS/Linux:
 
    ```bash
