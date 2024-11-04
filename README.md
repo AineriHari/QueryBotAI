@@ -21,7 +21,7 @@ An API that will be used to execute queries and generate responses based on the 
 ## Environment Setup
 
 To set up your environment, follow these steps:
-
+Note: Use Mac or Linux OS
 1. **Create a Virtual Environment**  
    Run the following command to create a virtual environment and activate it:
 
