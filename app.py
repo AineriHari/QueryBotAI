@@ -264,7 +264,7 @@ def _load_LLM_perform_query(query: str, search_type: str) -> None:
         retrieved_documents = query_documents(query)
         response = generate_response_for_query(query, retrieved_documents, search_type)
         if not response.strip():
-            return
+            return "Failed to generate the response. check the logs manually."
         query_data = f"\n**Query (at {datetime.now().strftime('%d %b %Y, %-I %p %M Secs')}): {query}**\n"
         response = query_data + response + "\n"
         with open("Chat_History.md", "a") as file:

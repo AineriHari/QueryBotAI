@@ -47,7 +47,8 @@ def generate_response(
     logging.info(f"Generating response using model: {model_name}")
 
     if documents is None or len(documents) == 0:
-        raise ValueError("No Documents to be loaded for analysis")
+        logging.error("No Documents to be loaded for analysis")
+        return ""
 
     def read_documents(doc_paths: List[str]) -> str:
         content = ""
@@ -116,7 +117,6 @@ def generate_response(
     try:
         # create a generative config
         generation_config = genai.types.GenerationConfig(
-            max_output_tokens=1024,
             temperature=0.7,
             top_p=0.9,
         )
