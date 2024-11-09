@@ -7,3 +7,4 @@ chardet
 python-docx
 termcolor
 PyPDF2
+gradio

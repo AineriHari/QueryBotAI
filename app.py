@@ -19,6 +19,7 @@ import traceback
 import shutil
 import faiss
 import logging
+import gradio as gr
 from datetime import datetime
 from typing import List
 from utils.indexer import index_documents
@@ -265,11 +266,13 @@ def _load_LLM_perform_query(query: str, search_type: str) -> None:
         if not response.strip():
             return
         query_data = f"\n**Query (at {datetime.now().strftime('%d %b %Y, %-I %p %M Secs')}): {query}**\n"
-        response = query_data + response + "\n" + "+" * 100 + "\n"
+        response = query_data + response + "\n"
         with open("Chat_History.md", "a") as file:
             # write a query for reference
             file.write(response)
         print_decorative_box("Generated response successfully.")
+
+        return response
 
 
 def _select_search_type(search_type: str) -> str:
@@ -290,9 +293,9 @@ def _select_search_type(search_type: str) -> str:
         ValueError: If an invalid search type is provided.
     """
     # select the search type
-    if int(search_type.lower()[0]) == 0:
+    if search_type == 0:
         search_type = "text-generation"
-    elif int(search_type.lower()[0]) == 1:
+    elif search_type == 1:
         search_type = "code-generation"
     else:
         raise ValueError(
@@ -303,84 +306,138 @@ def _select_search_type(search_type: str) -> str:
     return search_type
 
 
-def main() -> None:
+def load_and_index_file(files: List) -> str:
     """
-    Main function to run the command-line interface for indexing and querying documents.
+    Uploads, cleans up, and indexes the provided files.
 
-    This function sets up argument parsing, loads the FAISS model, and handles the actions
-    for either indexing documents or querying based on user input. If indexing is selected,
-    it performs a cleanup of specified directories and uploads files. If querying, it loads
-    the FAISS model, reads the query from a file, and generates a response.
+    This function removes temporary folders used for document storage, uploads the specified files,
+    and indexes them for retrieval purposes. Once indexed, it returns a message listing the indexed
+    files or an error message if the indexing process fails.
+
+    Parameters:
+    files (List): A list of file path to be uploaded and indexed.
 
     Returns:
-        None
+    str: A message indicating the status of the indexing process.
     """
-    logging.info("Hello! Welcome to the local LLM...\n")
-    logging.info(
-        "This is a simple, fast-response document search LLM."
-        "\nPlease start by indexing the documents you want to embed. You can then proceed with querying."
+
+    logging.info("Performing clean up section")
+
+    # remove the uploaded_documents and static folder
+    directory_paths = [
+        os.path.join(os.getcwd(), "uploaded_documents"),
+        os.path.join(os.getcwd(), "retrieved_documents"),
+    ]
+    cleanup(directory_paths)
+    logging.info("Clean up process completed successfully")
+
+    # upload files
+    uploaded_files = upload_files(files)
+    indexed_files = index_documents_for_files(uploaded_files)
+    if indexed_files:
+        return f"Indexed files: {', '.join(indexed_files)}"
+    return "Failed to index files."
+
+
+def query_response(query: str, search_type: int) -> str:
+    """
+    Processes a query to generate a response based on the specified search type.
+
+    This function selects the appropriate search type (e.g., Text Generation or Code Generation),
+    processes the query using an LLM model, and returns the generated response.
+
+    Parameters:
+    query (str): The user query for which a response is to be generated.
+    search_type (str): The type of search to be performed (e.g., "Text Generation", "Code Generation").
+
+    Returns:
+    str: The generated response to the query.
+    """
+    search_type_selected = _select_search_type(search_type)
+    response = _load_LLM_perform_query(
+        query=query,
+        search_type=search_type_selected,
     )
+    return response
 
-    indexed = False
 
-    while True:
-        try:
-            if not indexed:
-                action = input(
-                    colored(
-                        f"\nPlease select an action:\n1. Index\n2. Query\nYour choice: ",
-                        "red",
-                    )
-                )[0]
-            else:
-                action = "2"
+def main():
+    """
+    Initializes and launches the local LLM application with Gradio interfaces for file indexing and querying.
 
-            if action == "1":
-                logging.info("Performing clean up action")
-                # remove the uploaded_documents and static folder
-                directory_paths = [
-                    os.path.join(os.getcwd(), "uploaded_documents"),
-                    os.path.join(os.getcwd(), "retrieved_documents"),
-                ]
-                cleanup(directory_paths)
-                logging.info("Clean up process completed successfully")
+    This function sets up a Gradio interface for uploading and indexing documents, another for querying the indexed
+    documents, and combines them into a tabbed Gradio applocation. It also loads the necessary models for indexing
+    and querying before starting the app. Any exceptions during setup or launch are logged and displayed in the console.
 
-                files = input(
-                    colored("Provide the files by separating spaces\nFiles: ", "yellow")
-                ).split(" ")
+    Returns:
+    None
+    """
+    try:
+        logging.info("Hello! Welcome to the local LLM...")
 
-                uploaded_files = upload_files(files)
-                uploaded_files = index_documents_for_files(uploaded_files)
-                logging.info(f"Files uploaded and indexed: {uploaded_files}")
-                indexed = True
+        # Gradio interface for indexing files
+        index_interface = gr.Interface(
+            fn=load_and_index_file,
+            inputs=gr.File(label="Upload Documents", file_count="multiple"),
+            outputs="text",
+            title="Upload and Index Documents",
+        )
 
-            # if the action is "2", don't show the Index and Query action
-            if action == "2":
-                indexed = True
+        # Gradio interface for querying the indexed files
+        query_interface = gr.Interface(
+            fn=query_response,
+            inputs=[
+                gr.Textbox(label="Query", placeholder="Enter your query"),
+                gr.Radio(
+                    ["Text Generation", "Code Generation"],
+                    label="Search Type",
+                    type="index",
+                    value="Text Generation",
+                ),
+            ],
+            outputs="markdown",
+            title="Query Indexed Documents",
+        )
 
-            # Generate response
-            query = input(
-                colored("Enter your next query, or type 'quit' to exit: ", "red")
+        # Gradio interface for display the chat history
+        chat_history = lambda: open("Chat_History.md", "r").read()
+        chat_history_interface = gr.Interface(
+            fn=chat_history, inputs=None, outputs="markdown", title="Chat History"
+        )
+
+        # welcome page
+        with gr.Blocks() as app:
+            # README screen with a continue button
+            with gr.Column(visible=True) as readme_screen:
+                readme = lambda: open("README.md", "r").read()
+                gr.Markdown(readme())
+                continue_button = gr.Button("Continue")
+
+            with gr.Tabs(visible=False) as main_interface:
+                with gr.Tab("Index Documents"):
+                    index_interface.render()
+                with gr.Tab("Query"):
+                    query_interface.render()
+                with gr.Tab("Chat History"):
+                    chat_history_interface.render()
+
+            # when click continue visible the main interface and disable the readme
+            switch_to_main_interface = lambda: (
+                gr.update(visible=True),
+                gr.update(visible=False),
             )
-            if query.strip().lower() == "quit":
-                # exit the loop
-                logging.info("Thanks for using!!! Exiting the prompt.")
-                break
-            search_type = input(
-                colored(
-                    "Select your search type: text-generation(0)/code-generation(1) ?\n Your Choice: ",
-                    "yellow",
-                )
-            )[0]
+            continue_button.click(
+                switch_to_main_interface,
+                inputs=None,
+                outputs=[main_interface, readme_screen],
+            )
 
-            # select the search type
-            search_type = _select_search_type(search_type)
-
-            # Load the LLM to perform query
-            _load_LLM_perform_query(query=query, search_type=search_type)
-        except Exception as exc:
-            logging.error(traceback.format_exc())
-            print_decorative_box(f"Failed!!!! {exc}")
+        # Load FAISS model and embedding model before starting the interface
+        load_faiss_model()
+        app.launch()
+    except Exception as exc:
+        logging.error(traceback.format_exc())
+        print_decorative_box(f"Failed!!! {exc}")
 
 
 if __name__ == "__main__":

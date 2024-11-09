@@ -58,7 +58,7 @@ def generate_response(
 
             ext = os.path.splitext(path)[1].lower()
             try:
-                if ext == [".txt", ".html", ".py", ".css", ".js"]:
+                if ext in [".txt", ".html", ".py", ".css", ".js", ".log"]:
                     with open(path, "r", encoding="utf-8") as file:
                         content += (
                             f"\n[Document: {os.path.basename(path)}]\n{file.read()}\n"
