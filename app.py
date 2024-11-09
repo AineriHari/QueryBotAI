@@ -321,6 +321,8 @@ def load_and_index_file(files: List) -> str:
     str: A message indicating the status of the indexing process.
     """
 
+    if files is None:
+        return "No file is uploaded for index"
     logging.info("Performing clean up section")
 
     # remove the uploaded_documents and static folder
@@ -361,6 +363,33 @@ def query_response(query: str, search_type: int) -> str:
     return response
 
 
+def get_readme_content():
+    """
+    Reads the content of the README.md file.
+
+    Returns:
+        str: The content of the README.md file. If the file is not found, returns a message indicating that.
+    """
+    try:
+        return open("README.md", "r").read()
+    except FileNotFoundError:
+        return "README.md file not found."
+
+
+# Function to load the Chat History content
+def get_chat_history_content():
+    """
+    Reads the content of the Chat_History.md file.
+
+    Returns:
+        str: The content of the Chat_History.md file. If the file is not found, returns a message indicating that.
+    """
+    try:
+        return open("Chat_History.md", "r").read()
+    except FileNotFoundError:
+        return "Chat_History.md file not found."
+
+
 def main():
     """
     Initializes and launches the local LLM application with Gradio interfaces for file indexing and querying.
@@ -375,62 +404,102 @@ def main():
     try:
         logging.info("Hello! Welcome to the local LLM...")
 
-        # Gradio interface for indexing files
-        index_interface = gr.Interface(
-            fn=load_and_index_file,
-            inputs=gr.File(label="Upload Documents", file_count="multiple"),
-            outputs="text",
-            title="Upload and Index Documents",
-        )
-
-        # Gradio interface for querying the indexed files
-        query_interface = gr.Interface(
-            fn=query_response,
-            inputs=[
-                gr.Textbox(label="Query", placeholder="Enter your query"),
-                gr.Radio(
-                    ["Text Generation", "Code Generation"],
-                    label="Search Type",
-                    type="index",
-                    value="Text Generation",
-                ),
-            ],
-            outputs="markdown",
-            title="Query Indexed Documents",
-        )
-
-        # Gradio interface for display the chat history
-        chat_history = lambda: open("Chat_History.md", "r").read()
-        chat_history_interface = gr.Interface(
-            fn=chat_history, inputs=None, outputs="markdown", title="Chat History"
-        )
-
         # welcome page
         with gr.Blocks() as app:
-            # README screen with a continue button
-            with gr.Column(visible=True) as readme_screen:
-                readme = lambda: open("README.md", "r").read()
-                gr.Markdown(readme())
-                continue_button = gr.Button("Continue")
-
-            with gr.Tabs(visible=False) as main_interface:
+            with gr.Tabs() as main_interface:
                 with gr.Tab("Index Documents"):
-                    index_interface.render()
-                with gr.Tab("Query"):
-                    query_interface.render()
-                with gr.Tab("Chat History"):
-                    chat_history_interface.render()
+                    with gr.Row():
+                        # Left frame for prompt input
+                        with gr.Column():
+                            upload_input = gr.File(
+                                label="Upload Documents", file_count="multiple"
+                            )
+                            upload_button = gr.Button("Upload")
 
-            # when click continue visible the main interface and disable the readme
-            switch_to_main_interface = lambda: (
-                gr.update(visible=True),
-                gr.update(visible=False),
-            )
-            continue_button.click(
-                switch_to_main_interface,
-                inputs=None,
-                outputs=[main_interface, readme_screen],
-            )
+                        # Right frame for response display
+                        with gr.Column():
+                            content_display = gr.Markdown()
+                    # Click action to show "Loading..." message
+                    upload_button.click(
+                        fn=lambda q: "Indexing is in progress!!! Please wait...",
+                        inputs=[upload_input],
+                        outputs=content_display,
+                        queue=True,
+                    )
+
+                    # Button click action to update the response display
+                    upload_button.click(
+                        fn=load_and_index_file,
+                        inputs=[upload_input],
+                        outputs=content_display,
+                        show_progress=True,
+                    )
+
+                # Query Tab
+                with gr.Tab("Prompt"):
+                    with gr.Row():
+                        # Left frame for prompt input
+                        with gr.Column():
+                            query_input = gr.Textbox(
+                                label="Query", placeholder="Enter your query"
+                            )
+                            search_type = gr.Radio(
+                                ["Text Generation", "Code Generation"],
+                                label="Search Type",
+                                type="index",
+                                value="Text Generation",
+                            )
+                            query_button = gr.Button("Submit Query")
+
+                        # Right frame for response display
+                        with gr.Column():
+                            query_response_display = gr.Markdown(
+                                label="Response",
+                                elem_id="response_display",
+                            )
+
+                    # Click action to show "Loading..." message
+                    query_button.click(
+                        fn=lambda q, s: "Response is generating!!! Please wait...",
+                        inputs=[query_input, search_type],
+                        outputs=query_response_display,
+                        queue=True,
+                    )
+
+                    # Button click action to update the response display
+                    query_button.click(
+                        fn=query_response,
+                        inputs=[query_input, search_type],
+                        outputs=query_response_display,
+                        show_progress=True,
+                    )
+
+                # New Tab for Readme and Chat History
+                with gr.Tab("Readme and Chat History"):
+                    # Display Readme Content
+                    with gr.Row():
+                        with gr.Column():  # Readme and Chat History buttons in one column
+                            readme_button = gr.Button("Readme")
+                            chat_history_button = gr.Button("Chat History")
+
+                        with gr.Column():  # Display the content
+                            content_display = gr.Markdown(
+                                label="Response",
+                                elem_id="response_display",
+                            )
+
+                    # Button click actions to display README or Chat History content
+                    readme_button.click(
+                        fn=get_readme_content,
+                        inputs=None,
+                        outputs=content_display,
+                    )
+
+                    chat_history_button.click(
+                        fn=get_chat_history_content,
+                        inputs=None,
+                        outputs=content_display,
+                    )
 
         # Load FAISS model and embedding model before starting the interface
         load_faiss_model()
