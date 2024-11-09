@@ -421,7 +421,25 @@ def main():
                             content_display = gr.Markdown()
                     # Click action to show "Loading..." message
                     upload_button.click(
-                        fn=lambda q: "Indexing is in progress!!! Please wait...",
+                        fn=lambda q: """
+                            <div class="loader"></div>
+                            <style>
+                                .loader {
+                                    border: 8px solid #f3f3f3;
+                                    border-top: 8px solid #3498db;
+                                    border-radius: 50%;
+                                    width: 100px;
+                                    height: 100px;
+                                    animation: spin 2s linear infinite;
+                                    margin: 20px auto;
+                                }
+
+                                @keyframes spin {
+                                    0% { transform: rotate(0deg); }
+                                    100% { transform: rotate(360deg); }
+                                }
+                            </style>
+                            """,
                         inputs=[upload_input],
                         outputs=content_display,
                         queue=True,
@@ -460,7 +478,25 @@ def main():
 
                     # Click action to show "Loading..." message
                     query_button.click(
-                        fn=lambda q, s: "Response is generating!!! Please wait...",
+                        fn=lambda q, s: """
+                            <div class="loader"></div>
+                            <style>
+                                .loader {
+                                    border: 8px solid #f3f3f3;
+                                    border-top: 8px solid #3498db;
+                                    border-radius: 50%;
+                                    width: 100px;
+                                    height: 100px;
+                                    animation: spin 2s linear infinite;
+                                    margin: 20px auto;
+                                }
+
+                                @keyframes spin {
+                                    0% { transform: rotate(0deg); }
+                                    100% { transform: rotate(360deg); }
+                                }
+                            </style>
+                            """,
                         inputs=[query_input, search_type],
                         outputs=query_response_display,
                         queue=True,
