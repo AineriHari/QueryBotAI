@@ -294,4 +294,3 @@ def generate_response(
     except Exception as exc:
         logging.exception(f"Error in model processing: {exc}")
         return ""
-    
