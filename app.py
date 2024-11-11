@@ -544,7 +544,7 @@ def main():
         # Load FAISS model and embedding model before starting the interface
         load_faiss_model()
         app.title = "localLLM"
-        app.launch()
+        app.launch(server_name=SERVER_NAME, server_port=SERVER_PORT)
     except Exception as exc:
         logging.error(traceback.format_exc())
         print_decorative_box(f"Failed!!! {exc}")
