@@ -12,8 +12,8 @@ Key Functions:
 import os
 import logging
 import numpy as np
+import concurrent.futures
 from typing import List, Dict
-from pathlib import Path
 import google.generativeai as genai
 from utils.model_loader import load_model
 from utils.preprompts import TextGeneration, CodeGeneration
@@ -21,14 +21,13 @@ from termcolor import colored
 from PyPDF2 import PdfReader
 from docx import Document
 from sentence_transformers import SentenceTransformer
-from faiss.swigfaiss import IndexFlatL2
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
 
-def split_document(content: str, chunk: int = 200) -> List[str]:
+def split_document(content: str, chunk: int = 1024) -> List[str]:
     """
     Splits the given content into smaller chunks of specified size.
 
@@ -94,31 +93,28 @@ def read_documents(doc_paths: List[str]) -> Dict:
     return content
 
 
-def get_relevant_chunk(
+def get_relevant_chunk_for_query(
     embedding_model: SentenceTransformer,
-    query: str,
-    document_chunks: List,
+    query_embedding: np.ndarray,
+    document_chunks: List[str],
     top_n: int = 3,
 ) -> List[str]:
     """
-    Retrieves the top relevant chunks from the document based on the user query.
-
-    This function encodes the query and document chunks, computes the cosine similarity,
-    and returns the most relevant chunks based on the similarity scores.
+    Retrieves the top relevant chunks from the document based on the precomputed query embedding.
 
     Args:
         embedding_model (SentenceTransformer): The embedding model used for encoding.
-        query (str): The user query for which relevant content needs to be extracted.
-        document_chunks (List): A list of document chunks to search from.
+        query_embedding (np.ndarray): The precomputed embedding of the query.
+        document_chunks (List[str]): A list of document chunks to search from.
         top_n (int, optional): The number of top relevant chunks to return. Defaults to 3.
 
     Returns:
         List[str]: A list of the most relevant document chunks.
     """
-    query_embedding = embedding_model.encode(query).astype(np.float32)
+    # Encode the document chunks
     chunk_embeddings = embedding_model.encode(document_chunks).astype(np.float32)
 
-    # Compute cosine similarity between query and all document chunks
+    # Compute cosine similarity between the query and all document chunks
     similarities = np.dot(chunk_embeddings, query_embedding) / (
         np.linalg.norm(chunk_embeddings, axis=1) * np.linalg.norm(query_embedding)
     )
@@ -127,8 +123,71 @@ def get_relevant_chunk(
     top_indices = np.argsort(similarities)[-top_n:][::-1]
 
     # Retrieve the top `n` relevant chunks based on indices
-    top_relevant_chunks = [document_chunks[idx] for idx in top_indices]
-    return top_relevant_chunks
+    return [document_chunks[idx] for idx in top_indices]
+
+
+def process_document_chunks(
+    embedding_model: SentenceTransformer,
+    query_embedding: np.ndarray,
+    chunks: List[str],
+    top_n: int = 3
+) -> List[str]:
+    """
+    Process chunks of a single document in parallel to get relevant chunks.
+
+    Args:
+        embedding_model (SentenceTransformer): The embedding model used for encoding.
+        query_embedding (np.ndarray): The precomputed embedding of the query.
+        chunks (List[str]): A list of chunks within a single document.
+        top_n (int): The number of top relevant chunks to retrieve.
+
+    Returns:
+        List[str]: A list of relevant chunks for the document.
+    """
+    # Split the chunks into smaller groups for parallel processing
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(get_relevant_chunk_for_query, embedding_model, query_embedding, [chunk], top_n)
+            for chunk in chunks
+        ]
+        # Collect results
+        relevant_chunks = []
+        for future in futures:
+            relevant_chunks.extend(future.result())
+    return relevant_chunks
+
+
+def process_documents(
+    embedding_model: SentenceTransformer,
+    query: str,
+    document_content: Dict[str, List[str]],
+    top_n: int = 3
+) -> Dict[str, List[str]]:
+    """
+    Process multiple documents in parallel to get relevant chunks.
+
+    Args:
+        embedding_model (SentenceTransformer): The embedding model used for encoding.
+        query (str): The user query.
+        document_content (Dict[str, List[str]]): Dictionary where keys are filenames and values are lists of chunks.
+        top_n (int): The number of top relevant chunks to retrieve.
+
+    Returns:
+        Dict[str, List[str]]: Dictionary of relevant chunks for each document.
+    """
+    query_embedding = embedding_model.encode(query).astype(np.float32)
+    relevant_contents = {}
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {
+            filename: executor.submit(process_document_chunks, embedding_model, query_embedding, chunks, top_n)
+            for filename, chunks in document_content.items()
+        }
+        for filename, future in futures.items():
+            relevant_contents[filename] = future.result()
+    
+    print(f"relevant contents: {relevant_contents}")
+    return relevant_contents
 
 
 def generate_response(
@@ -168,10 +227,7 @@ def generate_response(
         return ""
 
     # Load the relavent documents and extract the relavant content
-    relevant_contents = {}
-    for filename, chunks in document_content.items():
-        top_chunks = get_relevant_chunk(embedding_model, query, chunks, top_n=3)
-        relevant_contents[filename] = top_chunks
+    relevant_contents = process_documents(embedding_model=embedding_model, query=query, document_content=document_content)
 
     # Select appropriate prompt template
     if search_type.lower() == "code-generation":
@@ -238,3 +294,4 @@ def generate_response(
     except Exception as exc:
         logging.exception(f"Error in model processing: {exc}")
         return ""
+    
