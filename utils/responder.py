@@ -11,38 +11,148 @@ Key Functions:
 
 import os
 import logging
-from typing import List
+import numpy as np
+from typing import List, Dict
+from pathlib import Path
 import google.generativeai as genai
 from utils.model_loader import load_model
 from utils.preprompts import TextGeneration, CodeGeneration
 from termcolor import colored
 from PyPDF2 import PdfReader
 from docx import Document
+from sentence_transformers import SentenceTransformer
+from faiss.swigfaiss import IndexFlatL2
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
 
+def split_document(content: str, chunk: int = 200) -> List[str]:
+    """
+    Splits the given content into smaller chunks of specified size.
+
+    This function divides the input content into multiple chunks, each of a specified length.
+    It helps in processing large documents by splitting them into manageable parts.
+
+    Args:
+        content (str): The content to be split into chunks.
+        chunk (int, optional): The size of each chunk. Defaults to 200.
+
+    Returns:
+        List[str]: A list of content chunks.
+    """
+    return [content[i : i + chunk] for i in range(0, len(content), chunk)]
+
+
+def read_documents(doc_paths: List[str]) -> Dict:
+    """
+    Reads and extracts content from a list of document paths.
+
+    This function supports reading text, HTML, Python, CSS, JavaScript, log, PDF, and DOCX files.
+    It splits the content into smaller chunks and stores them in a dictionary with the filename as the key.
+
+    Args:
+        doc_paths (List[str]): A list of document file paths to read.
+
+    Returns:
+        Dict: A dictionary where the keys are filenames and the values are lists of content chunks.
+    """
+    content = {}
+    for path in doc_paths:
+        if not os.path.exists(path):
+            logging.warning(f"Document not found: {path}")
+            continue
+
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            if ext in [".txt", ".html", ".py", ".css", ".js", ".log"]:
+                with open(path, "r", encoding="utf-8") as file:
+                    content.update(
+                        {os.path.basename(path): split_document(file.read())}
+                    )
+            elif ext == ".pdf":
+                with open(path, "rb") as file:
+                    reader = PdfReader(file)
+                    pdf_content = "\n".join(
+                        page.extract_text()
+                        for page in reader.pages
+                        if page.extract_text()
+                    )
+                    content.update(
+                        {os.path.basename(path): split_document(pdf_content)}
+                    )
+            elif ext == ".docx":
+                doc = Document(path)
+                docx_content = "\n".join(para.text for para in doc.paragraphs)
+                content.update({os.path.basename(path): split_document(docx_content)})
+            else:
+                logging.warning(f"Unsupported file type for reading: {path}")
+        except Exception as e:
+            logging.warning(f"Could not read document {path}: {e}")
+
+    return content
+
+
+def get_relevant_chunk(
+    embedding_model: SentenceTransformer,
+    query: str,
+    document_chunks: List,
+    top_n: int = 3,
+) -> List[str]:
+    """
+    Retrieves the top relevant chunks from the document based on the user query.
+
+    This function encodes the query and document chunks, computes the cosine similarity,
+    and returns the most relevant chunks based on the similarity scores.
+
+    Args:
+        embedding_model (SentenceTransformer): The embedding model used for encoding.
+        query (str): The user query for which relevant content needs to be extracted.
+        document_chunks (List): A list of document chunks to search from.
+        top_n (int, optional): The number of top relevant chunks to return. Defaults to 3.
+
+    Returns:
+        List[str]: A list of the most relevant document chunks.
+    """
+    query_embedding = embedding_model.encode(query).astype(np.float32)
+    chunk_embeddings = embedding_model.encode(document_chunks).astype(np.float32)
+
+    # Compute cosine similarity between query and all document chunks
+    similarities = np.dot(chunk_embeddings, query_embedding) / (
+        np.linalg.norm(chunk_embeddings, axis=1) * np.linalg.norm(query_embedding)
+    )
+
+    # Get indices of the top `n` relevant chunks
+    top_indices = np.argsort(similarities)[-top_n:][::-1]
+
+    # Retrieve the top `n` relevant chunks based on indices
+    top_relevant_chunks = [document_chunks[idx] for idx in top_indices]
+    return top_relevant_chunks
+
+
 def generate_response(
+    embedding_model: SentenceTransformer,
     query: str,
     documents: List[str] = None,
     model_name: str = "gemini-1.5-flash",
     search_type: str = "code-generation",
 ):
     """
-    Generates a response using the specified generative AI model.
+    Generates a response using the specified generative AI model based on the user query and documents.
 
-    This function takes a query and a list of documents, loads the specified model, reads
-    the content of the documents, and generates a response based on the query.
+    This function reads the content of the documents, extracts relevant chunks, and sends
+    the query along with the relevant information to the generative AI model to generate a response.
 
     Args:
-        query (str): The query for which a response is to be generated.
-        documents (list, optional): A list of file paths to documents for analysis. Defaults to None.
-        model_name (str, optional): The name of the generative AI model to load. Defaults to "gemini-1.5-flash".
+        embedding_model (SentenceTransformer): The embedding model for encoding the query and documents.
+        query (str): The user query for which a response is to be generated.
+        documents (List[str], optional): A list of document paths to be analyzed. Defaults to None.
+        model_name (str, optional): The name of the generative AI model to use. Defaults to "gemini-1.5-flash".
+        search_type (str, optional): The type of response generation (e.g., "code-generation"). Defaults to "code-generation".
 
     Returns:
-        str: The generated response or an error message if no documents are found or if an error occurs.
+        str: The generated response text or an error message if the response could not be generated.
     """
     logging.info(f"Generating response using model: {model_name}")
 
@@ -50,67 +160,38 @@ def generate_response(
         logging.error("No Documents to be loaded for analysis")
         return ""
 
-    def read_documents(doc_paths: List[str]) -> str:
-        content = ""
-        for path in doc_paths:
-            if not os.path.exists(path):
-                logging.warning(f"Document not found: {path}")
-                continue
-
-            ext = os.path.splitext(path)[1].lower()
-            try:
-                if ext in [".txt", ".html", ".py", ".css", ".js", ".log"]:
-                    with open(path, "r", encoding="utf-8") as file:
-                        content += (
-                            f"\n[Document: {os.path.basename(path)}]\n{file.read()}\n"
-                        )
-                elif ext == ".pdf":
-                    with open(path, "rb") as file:
-                        reader = PdfReader(file)
-                        pdf_content = "\n".join(
-                            page.extract_text()
-                            for page in reader.pages
-                            if page.extract_text()
-                        )
-                        content += (
-                            f"\n[Document: {os.path.basename(path)}]\n{pdf_content}\n"
-                        )
-                elif ext == ".docx":
-                    doc = Document(path)
-                    docx_content = "\n".join(para.text for para in doc.paragraphs)
-                    content += (
-                        f"\n[Document: {os.path.basename(path)}]\n{docx_content}\n"
-                    )
-                else:
-                    logging.warning(f"Unsupported file type for reading: {path}")
-            except Exception as e:
-                logging.warning(f"Could not read document {path}: {e}")
-
-        return content
-
     # Read and prepare content from documents
     document_content = read_documents(documents)
 
-    if not document_content:
+    if not all(list(document_content.values())):
         logging.warning("No readable content found in provided documents.")
+        return ""
+
+    # Load the relavent documents and extract the relavant content
+    relevant_contents = {}
+    for filename, chunks in document_content.items():
+        top_chunks = get_relevant_chunk(embedding_model, query, chunks, top_n=3)
+        relevant_contents[filename] = top_chunks
 
     # Select appropriate prompt template
     if search_type.lower() == "code-generation":
         prompt_template = CodeGeneration()
-        user_prompt = (
-            prompt_template.USER_PROMPT.format(query=query)
-            + "\nExisting Code:\n"
-            + document_content.strip()
-        )
+        user_prompt = prompt_template.USER_PROMPT.format(query=query)
     else:
         prompt_template = TextGeneration()
         user_prompt = prompt_template.USER_PROMPT.format(query=query)
 
     # Prepare content for model input
+    parse_relevant_information = "\n".join(
+        [
+            f"Document: {filename}\ncontent:{' '.join(chunk for chunk in relevant_contents[filename])}"
+            for filename in relevant_contents
+        ]
+    )
     content = [
         f"System Prompt: {prompt_template.SYSTEM_PROMPT}",
         f"User Prompt: {user_prompt}",
-        f"Information: {document_content.strip()}",
+        f"Relevant Information for User Prompt: {parse_relevant_information}",
     ]
 
     # Load the Gemini model

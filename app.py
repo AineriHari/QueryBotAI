@@ -29,7 +29,6 @@ from werkzeug.utils import secure_filename
 from sentence_transformers import SentenceTransformer
 from faiss.swigfaiss import IndexFlatL2
 from dotenv import load_dotenv
-from termcolor import colored
 
 
 # Load environment variables from .env file
@@ -172,12 +171,13 @@ def generate_response_for_query(
     Args:
         query: The query string.
         retrieved_documents: The documents retrieved based on the query.
-
+        search_type: This refers the what type of model should generate the response (Text Generation, Code Generation)
     Returns:
         str: The generated response, formatted as HTML.
     """
     try:
         response = generate_response(
+            embedding_model=model,
             query=query,
             documents=retrieved_documents,
             model_name=(
