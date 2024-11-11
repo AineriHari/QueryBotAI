@@ -34,6 +34,10 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv(override=True)
 
+# set the server name and port
+SERVER_NAME = os.getenv("SERVER_NAME", "127.0.0.1")
+SERVER_PORT = int(os.getenv("SERVER_PORT", 7860))
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
