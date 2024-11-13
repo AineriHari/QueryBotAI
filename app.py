@@ -399,6 +399,7 @@ def generate_chat_bot(query: str) -> Generator:
     )
     for chunk in response:
         full_response += chunk.text
+        logging.info(full_response)
         yield full_response
 
 
