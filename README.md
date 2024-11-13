@@ -2,14 +2,14 @@
 
 This project aims to create a lightweight local Large Language Model (LLM) for document-based query search, code generation, and chatbot interaction. The system uses FAISS for efficient indexing, Sentence Transformers for embedding generation, and Gemini models for generative responses. The chatbot provides a conversational interface for users to query documents and interact with the LLM effectively.
 
-##Features
+## Features
 
-###Document-Based Query Search: Retrieve the most relevant content from documents using FAISS and embeddings.
+### Document-Based Query Search: Retrieve the most relevant content from documents using FAISS and embeddings.
 
-###Code Generation: 
+### Code Generation: 
 Generate code snippets based on user input with minimal explanations.
 
-###Interactive Chatbot: 
+### Interactive Chatbot: 
 Provides a conversational interface for querying documents and interacting with the LLM.
 
 ## Tools and Technologies
@@ -65,7 +65,8 @@ Note: Use Mac or Linux OS
    ```bash
    GOOGLE_API_KEY=your_api_key_here
    MODEL_NAME=your_model_name_here
-
+   GOOGLE_API_KEY="your-google-api-key"
+   SERVER_PORT="your-server-port"
    ```
 
 5. **Run the Application**
