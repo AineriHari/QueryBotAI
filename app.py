@@ -30,6 +30,7 @@ from sentence_transformers import SentenceTransformer
 from faiss.swigfaiss import IndexFlatL2
 from dotenv import load_dotenv
 import google.generativeai as genai
+from utils.model_loader import load_model
 
 
 # Load environment variables from .env file
