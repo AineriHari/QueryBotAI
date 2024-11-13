@@ -21,7 +21,7 @@ import faiss
 import logging
 import gradio as gr
 from datetime import datetime
-from typing import List
+from typing import List, Generator
 from utils.indexer import index_documents
 from utils.retriever import retrieve_documents
 from utils.responder import generate_response
@@ -29,6 +29,7 @@ from werkzeug.utils import secure_filename
 from sentence_transformers import SentenceTransformer
 from faiss.swigfaiss import IndexFlatL2
 from dotenv import load_dotenv
+import google.generativeai as genai
 
 
 # Load environment variables from .env file
@@ -367,6 +368,39 @@ def query_response(query: str, search_type: int) -> str:
     return response
 
 
+def generate_chat_bot(query: str) -> Generator:
+    """
+    Generates a response to a user's query using a language model.
+
+    This function loads a language model based on an environment variable `MODEL_NAME`
+    (or defaults to `"gemini-1.5-flash"` if the variable is not set) and generates a response
+    to the input query. The response is generated incrementally and yields progressively
+    more complete text for real-time display.
+
+    Parameters:
+        query (str): The user's input query to the chatbot.
+
+    Yields:
+        str: The progressively built response text, chunk by chunk, allowing for streaming output.
+    """
+    model_name = (
+        os.getenv("MODEL_NAME") if os.getenv("MODEL_NAME", None) else "gemini-1.5-flash"
+    )
+    model = load_model(model_name)
+    full_response = ""
+    response = model.generate_content(
+        query,
+        generation_config=genai.types.GenerationConfig(
+            temperature=0.7,
+            top_p=0.9,
+        ),
+        stream=True,
+    )
+    for chunk in response:
+        full_response += chunk.text
+        yield full_response
+
+
 def get_readme_content():
     """
     Reads the content of the README.md file.
@@ -514,6 +548,57 @@ def main():
                         show_progress=True,
                     )
 
+                # Chat bot
+                with gr.Tab("Chat"):
+                    with gr.Row():
+                        # Left frame for prompt input
+                        with gr.Column():
+                            query_input = gr.Textbox(
+                                label="Query", placeholder="Enter your query"
+                            )
+                            query_button = gr.Button("Submit Query")
+
+                        # Right frame for response display
+                        with gr.Column():
+                            query_response_display = gr.Markdown(
+                                label="Response",
+                                elem_id="response_display",
+                            )
+
+                    # Click action to show "Loading..." message
+                    query_button.click(
+                        fn=lambda q: """
+                            <div class="loader"></div>
+                            <style>
+                                .loader {
+                                    border: 8px solid #f3f3f3;
+                                    border-top: 8px solid #3498db;
+                                    border-radius: 50%;
+                                    width: 100px;
+                                    height: 100px;
+                                    animation: spin 2s linear infinite;
+                                    margin: 20px auto;
+                                }
+
+                                @keyframes spin {
+                                    0% { transform: rotate(0deg); }
+                                    100% { transform: rotate(360deg); }
+                                }
+                            </style>
+                            """,
+                        inputs=[query_input],
+                        outputs=query_response_display,
+                        queue=True,
+                    )
+
+                    # Button click action to update the response display
+                    query_button.click(
+                        fn=generate_chat_bot,
+                        inputs=[query_input],
+                        outputs=query_response_display,
+                        show_progress=True,
+                    )
+                    
                 # New Tab for Readme and Chat History
                 with gr.Tab("Readme and Chat History"):
                     # Display Readme Content
