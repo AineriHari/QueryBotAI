@@ -16,7 +16,7 @@ import concurrent.futures
 from typing import List, Dict
 import google.generativeai as genai
 from utils.model_loader import load_model
-from utils.preprompts import TextGeneration, CodeGeneration
+from utils.preprompts import DocumentSearch
 from termcolor import colored
 from PyPDF2 import PdfReader
 from docx import Document
@@ -130,7 +130,7 @@ def process_document_chunks(
     embedding_model: SentenceTransformer,
     query_embedding: np.ndarray,
     chunks: List[str],
-    top_n: int = 3
+    top_n: int = 3,
 ) -> List[str]:
     """
     Process chunks of a single document in parallel to get relevant chunks.
@@ -147,7 +147,13 @@ def process_document_chunks(
     # Split the chunks into smaller groups for parallel processing
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = [
-            executor.submit(get_relevant_chunk_for_query, embedding_model, query_embedding, [chunk], top_n)
+            executor.submit(
+                get_relevant_chunk_for_query,
+                embedding_model,
+                query_embedding,
+                [chunk],
+                top_n,
+            )
             for chunk in chunks
         ]
         # Collect results
@@ -161,7 +167,7 @@ def process_documents(
     embedding_model: SentenceTransformer,
     query: str,
     document_content: Dict[str, List[str]],
-    top_n: int = 3
+    top_n: int = 3,
 ) -> Dict[str, List[str]]:
     """
     Process multiple documents in parallel to get relevant chunks.
@@ -180,12 +186,14 @@ def process_documents(
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {
-            filename: executor.submit(process_document_chunks, embedding_model, query_embedding, chunks, top_n)
+            filename: executor.submit(
+                process_document_chunks, embedding_model, query_embedding, chunks, top_n
+            )
             for filename, chunks in document_content.items()
         }
         for filename, future in futures.items():
             relevant_contents[filename] = future.result()
-    
+
     print(f"relevant contents: {relevant_contents}")
     return relevant_contents
 
@@ -195,7 +203,6 @@ def generate_response(
     query: str,
     documents: List[str] = None,
     model_name: str = "gemini-1.5-flash",
-    search_type: str = "code-generation",
 ):
     """
     Generates a response using the specified generative AI model based on the user query and documents.
@@ -227,15 +234,12 @@ def generate_response(
         return ""
 
     # Load the relavent documents and extract the relavant content
-    relevant_contents = process_documents(embedding_model=embedding_model, query=query, document_content=document_content)
+    relevant_contents = process_documents(
+        embedding_model=embedding_model, query=query, document_content=document_content
+    )
 
     # Select appropriate prompt template
-    if search_type.lower() == "code-generation":
-        prompt_template = CodeGeneration()
-        user_prompt = prompt_template.USER_PROMPT.format(query=query)
-    else:
-        prompt_template = TextGeneration()
-        user_prompt = prompt_template.USER_PROMPT.format(query=query)
+    prompt_template = DocumentSearch()
 
     # Prepare content for model input
     parse_relevant_information = "\n".join(
@@ -244,10 +248,15 @@ def generate_response(
             for filename in relevant_contents
         ]
     )
+    user_prompt = prompt_template.USER_PROMPT.format(
+        query=query,
+        document_chunk=parse_relevant_information,
+        user_query=query,
+        max_tokens=1000,
+    )
     content = [
-        f"System Prompt: {prompt_template.SYSTEM_PROMPT}",
+        f"System Prompt: {prompt_template.SYSTEM_PROMPT.format(max_tokens=1000)}",
         f"User Prompt: {user_prompt}",
-        f"Relevant Information for User Prompt: {parse_relevant_information}",
     ]
 
     # Load the Gemini model
@@ -255,38 +264,21 @@ def generate_response(
         # create a generative config
         generation_config = genai.types.GenerationConfig(
             temperature=0.7,
+            max_output_tokens=1000,
             top_p=0.9,
         )
         model = load_model(model_name)
 
         # get the response
-        if search_type == "code-generation":
-            response = model.generate_content(
-                content,
-                generation_config=generation_config,
-                stream=True,
-                tools="code_execution",
-            )
-        else:
-            response = model.generate_content(
-                content, generation_config=generation_config, stream=True
-            )
+        response = model.generate_content(
+            content,
+            generation_config=generation_config,
+        ).text
 
-        final_response = ""
-        for chunk in response:
-            try:
-                print(colored(chunk.text, "green"))
-                final_response += chunk.text
-            except Exception as _:
-                # Log warning if the chunk is empty and log finish_reason if available
-                finish_reason = getattr(chunk, "finish_reason", None)
-                logging.warning(
-                    f"Received an empty chunk. Finish reason: {finish_reason} - Skipping..."
-                )
-
-        if final_response:
+        if response:
+            print(colored(response, "green"))
             logging.info("Response generated successfully")
-            return final_response
+            return response
 
         logging.error("The Gemini model did not generate any text response")
         return ""

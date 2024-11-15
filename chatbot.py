@@ -31,14 +31,15 @@ from faiss.swigfaiss import IndexFlatL2
 from dotenv import load_dotenv
 import google.generativeai as genai
 from utils.model_loader import load_model
+from utils.preprompts import ChatBot
 
 
 # Load environment variables from .env file
 load_dotenv(override=True)
 
 # set the server name and port
-SERVER_NAME = os.getenv("SERVER_NAME", "127.0.0.1")
-SERVER_PORT = int(os.getenv("SERVER_PORT", 7860))
+SERVER_NAME = os.getenv("SERVER_NAME")
+SERVER_PORT = int(os.getenv("SERVER_PORT"))
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -169,7 +170,8 @@ def query_documents(query: str) -> List:
 
 
 def generate_response_for_query(
-    query: str, retrieved_documents: List, search_type: str
+    query: str,
+    retrieved_documents: List,
 ) -> str:
     """
     Generates a response based on the input query and retrieved documents.
@@ -177,7 +179,6 @@ def generate_response_for_query(
     Args:
         query: The query string.
         retrieved_documents: The documents retrieved based on the query.
-        search_type: This refers the what type of model should generate the response (Text Generation, Code Generation)
     Returns:
         str: The generated response, formatted as HTML.
     """
@@ -191,7 +192,6 @@ def generate_response_for_query(
                 if os.getenv("MODEL_NAME", None)
                 else "gemini-1.5-flash"
             ),
-            search_type=search_type,
         )
         return response
     except Exception as e:
@@ -245,7 +245,7 @@ def cleanup(directory_paths: List) -> None:
             logging.warning(f"Directory '{directory_path}' content does not exist.")
 
 
-def _load_LLM_perform_query(query: str, search_type: str) -> None:
+def _load_LLM_perform_query(query: str) -> None:
     """
     Loads the FAISS model, processes a given query, and generates a response based on the selected search type.
 
@@ -255,7 +255,6 @@ def _load_LLM_perform_query(query: str, search_type: str) -> None:
 
     Args:
         query (str): The query string to search and generate a response for.
-        search_type (str): The type of search to be performed, either 'text-generation' or 'code-generation'.
 
     Returns:
         None
@@ -268,7 +267,7 @@ def _load_LLM_perform_query(query: str, search_type: str) -> None:
         print_decorative_box("No query found in prompt template!!!")
     else:
         retrieved_documents = query_documents(query)
-        response = generate_response_for_query(query, retrieved_documents, search_type)
+        response = generate_response_for_query(query, retrieved_documents)
         if not response.strip():
             return "Failed to generate the response. check the logs manually."
         query_data = f"\n**Query (at {datetime.now().strftime('%d %b %Y, %-I %p %M Secs')}): {query}**\n"
@@ -279,37 +278,6 @@ def _load_LLM_perform_query(query: str, search_type: str) -> None:
         print_decorative_box("Generated response successfully.")
 
         return response
-
-
-def _select_search_type(search_type: str) -> str:
-    """
-    Determines the appropriate search type based on user input and logs the selection.
-
-    This function interprets the search type input (either '0' for text generation or '1' for code generation).
-    If an invalid option is provided, it raises a ValueError.
-
-    Args:
-        search_type (str): A string representation of the search type, where '0' represents text generation
-                           and '1' represents code generation.
-
-    Returns:
-        str: The resolved search type, either 'text-generation' or 'code-generation'.
-
-    Raises:
-        ValueError: If an invalid search type is provided.
-    """
-    # select the search type
-    if search_type == 0:
-        search_type = "text-generation"
-    elif search_type == 1:
-        search_type = "code-generation"
-    else:
-        raise ValueError(
-            f"You have selected wrong option, Your choice: {search_type}. please try again later!!!"
-        )
-    logging.info(f"You have selected search type: {search_type}")
-
-    return search_type
 
 
 def load_and_index_file(files: List) -> str:
@@ -347,7 +315,7 @@ def load_and_index_file(files: List) -> str:
     return "Failed to index files."
 
 
-def query_response(query: str, search_type: int) -> str:
+def query_response(query: str) -> str:
     """
     Processes a query to generate a response based on the specified search type.
 
@@ -356,16 +324,11 @@ def query_response(query: str, search_type: int) -> str:
 
     Parameters:
     query (str): The user query for which a response is to be generated.
-    search_type (str): The type of search to be performed (e.g., "Text Generation", "Code Generation").
 
     Returns:
     str: The generated response to the query.
     """
-    search_type_selected = _select_search_type(search_type)
-    response = _load_LLM_perform_query(
-        query=query,
-        search_type=search_type_selected,
-    )
+    response = _load_LLM_perform_query(query=query)
     return response
 
 
@@ -387,12 +350,27 @@ def generate_chat_bot(query: str) -> Generator:
     model_name = (
         os.getenv("MODEL_NAME") if os.getenv("MODEL_NAME", None) else "gemini-1.5-flash"
     )
+
+    # Select appropriate prompt template
+    prompt_template = ChatBot()
+
+    # Prepare content for model input
+    user_prompt = prompt_template.USER_PROMPT.format(
+        user_query=query,
+        max_tokens=1000,
+    )
+    content = [
+        f"System Prompt: {prompt_template.SYSTEM_PROMPT.format(max_tokens=1000)}",
+        f"User Prompt: {user_prompt}",
+    ]
+
     model = load_model(model_name)
     full_response = ""
     response = model.generate_content(
-        query,
+        content,
         generation_config=genai.types.GenerationConfig(
             temperature=0.7,
+            max_output_tokens=1000,
             top_p=0.9,
         ),
         stream=True,
@@ -501,12 +479,6 @@ def main():
                             query_input = gr.Textbox(
                                 label="Query", placeholder="Enter your query"
                             )
-                            search_type = gr.Radio(
-                                ["Text Generation", "Code Generation"],
-                                label="Search Type",
-                                type="index",
-                                value="Text Generation",
-                            )
                             query_button = gr.Button("Submit Query")
 
                         # Right frame for response display
@@ -518,7 +490,7 @@ def main():
 
                     # Click action to show "Loading..." message
                     query_button.click(
-                        fn=lambda q, s: """
+                        fn=lambda q: """
                             <div class="loader"></div>
                             <style>
                                 .loader {
@@ -537,7 +509,7 @@ def main():
                                 }
                             </style>
                             """,
-                        inputs=[query_input, search_type],
+                        inputs=[query_input],
                         outputs=query_response_display,
                         queue=True,
                     )
@@ -545,7 +517,7 @@ def main():
                     # Button click action to update the response display
                     query_button.click(
                         fn=query_response,
-                        inputs=[query_input, search_type],
+                        inputs=[query_input],
                         outputs=query_response_display,
                         show_progress=True,
                     )
@@ -600,7 +572,7 @@ def main():
                         outputs=query_response_display,
                         show_progress=True,
                     )
-                    
+
                 # New Tab for Readme and Chat History
                 with gr.Tab("Readme and Chat History"):
                     # Display Readme Content

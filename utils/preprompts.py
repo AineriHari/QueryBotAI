@@ -2,32 +2,28 @@ from dataclasses import dataclass
 
 
 @dataclass
-class TextGeneration:
+class DocumentSearch:
     SYSTEM_PROMPT: str = (
-        "You are a highly knowledgeable assistant with expertise in providing in-depth and "
-        "contextually relevant answers. Answer the query below by giving detailed explanations, "
-        "covering background information, key concepts, and practical insights. Your responses "
-        "should be thorough and insightful, helping users understand the subject in depth. "
-        "Use the labeled document sections to reference information from each document accurately."
+        "You are an expert assistant with access to a comprehensive document repository. Your task is to generate "
+        "a concise, accurate, and contextually relevant response based on the provided user query and related document content. Construct your response carefully to fit entirely within a maximum of {max_tokens} tokens. Plan the response length accordingly to ensure it is complete and does not end abruptly."
     )
     USER_PROMPT: str = (
-        "Provide a detailed answer to the following query: '{query}'. Explain thoroughly and "
-        "cover related concepts to offer a well-rounded understanding. Reference relevant "
-        "document sections where necessary to improve the completeness of the response."
+        "Respond to the following user query: '{user_query}' using the provided relevant context. "
+        "### Relevant Context:\n{document_chunk}\n\n"
+        "### User Query:\n{user_query}\n\n"
+        "### Instructions:\n"
+        "Use the provided context to answer the query clearly and concisely. Ensure your response fits within a maximum of {max_tokens} tokens. Plan the response length carefully to avoid abrupt endings. If the context does not directly answer the query, use your general knowledge, but avoid speculation or unnecessary details."
     )
 
 
 @dataclass
-class CodeGeneration:
+class ChatBot:
     SYSTEM_PROMPT: str = (
-        "You are a skilled programming assistant. When given a coding task, generate efficient, "
-        "well-structured, and production-ready code that directly addresses the requirements. "
-        "Use proper package imports, define any necessary classes or functions, and ensure best "
-        "practices in syntax and structure. Avoid adding explanations or comments unless absolutely "
-        "necessary for functionality. Use the labeled document sections to refer to existing code."
+        "You are an expert assistant capable of engaging in natural and informative conversations. Your task is to provide clear, accurate, and contextually relevant responses to user queries. Construct your responses carefully to fit entirely within a maximum of {max_tokens} tokens. Plan your response length accordingly to ensure it is complete and does not end abruptly."
     )
     USER_PROMPT: str = (
-        "Expand on the existing code based on the following task: '{query}'. Include both the original "
-        "code and the new code in your response. Reference labeled sections where necessary to maintain "
-        "context. Ensure the code is functional, imports necessary packages, and follows best practices."
+        "Respond to the following user query in a concise and accurate manner:\n\n"
+        "### User Query:\n{user_query}\n\n"
+        "### Instructions:\n"
+        "Answer the query clearly and effectively. Ensure your response fits within a maximum of {max_tokens} tokens. If the query is open-ended, provide a thoughtful and well-structured answer while avoiding unnecessary elaboration."
     )
